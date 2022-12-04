@@ -1,0 +1,55 @@
+settings:
+    in_config_path: /home/david/hiwijob/cfg/run_test
+    out_config_path: /home/david/hiwijob/cfg/run_test/cfg_run
+    out_validation_path: /home/david/lfpw/prepared/lfpw/grid_search_better/pre/full
+    out_save: /home/david/hiwijob/training/results_run
+    out_log: /home/david/hiwijob/training/logging_run
+
+
+optimizer:
+    lr:
+        lr_set: False
+        lr_min: 0.001
+        lr_max: 0.01
+        lr_step: 0.002
+
+network:
+    architecture:
+        architecture_set: True
+        architecture_1: deeplabv3
+        architecture_2: psp_net
+        architecture_3: e_net
+    architecture_config:
+        encoder_name:
+            encoder_name_set: True
+            encoder_name_1: resnet50
+            encoder_name_2: resnet101
+            encoder_name_3: resnet152
+            encoder_name_4: mobilenetv2
+            encoder_name_5: vgg19_bn
+
+
+data:
+    batch_size:
+        batch_size_set: False
+        batch_size_1: 1
+        batch_size_2: 16
+        batch_size_3: 32
+    img_size:
+        img_size_set: False
+        img_size_min: 10
+        img_size_max: 100
+        img_size_step: 10
+
+training:
+    train_loss:
+        loss_type:
+            loss_type_set: False
+            loss_type_1: mse
+            loss_type_2: bin_cross_entropy
+    val_loss:
+        loss_type:
+            loss_type_set: False
+            loss_type_1:
+            loss_type_2:
+

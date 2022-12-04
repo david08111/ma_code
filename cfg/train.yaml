@@ -1,0 +1,67 @@
+network:
+  architecture: efficientnet-b8
+  architecture_config:
+    activation: sigmoid
+    in_channels: 3
+#  norm_type: 'instance'
+#  classes: 7
+
+optimizer:
+  optim_type: "adam"
+  lr: 0.001
+  eps: 0.00000001
+  weight_decay: 0
+
+scheduler:
+  sched_type: "reduce_on_plateau"
+  eps: 0.00000001
+  factor: 0.1
+  patience: 10
+  threshold: 0.0001
+  cooldown: 20
+
+training:
+  save_path: "/work/scratch/dziuba/ma_code/trainings/test_debug"
+  gpu_ids: [0]
+  save_freq: 10
+  num_epochs: 100
+  use_cpp: False
+
+loss:
+  train_loss: 
+    loss_type: "mse"
+    focal_length: 1000
+    img_size: 256
+  val_loss:
+    loss_type: "threedbbox_mse"
+    focal_length: 1000
+    img_size: 256
+    weight_list: [100000000, 10, 2, 2, 200, 800, 150]
+  best_eval_mode: "min"
+  metrics_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/metrics_master.yaml"
+
+
+data:
+  datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref.yaml"
+  batch_size: 4
+  num_workers: 0
+  img_width: 1024
+  img_height: 512
+  data_augmentation_train:
+    rotation: 180
+    translation: 25
+    scaling: 0.1
+    horizont_flip: True
+    vertical_flip: True
+  data_augmentation_val:
+    rotation: 45
+    translation: 25
+    scaling: 0.05
+    horizont_flip: False
+    vertical_flip: False
+
+logging:
+  enable: True
+  port: 9999
+  name: "AC"
+  save_path: "/work/scratch/dziuba/ma_code/logs/test_debug"

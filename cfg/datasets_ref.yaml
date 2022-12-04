@@ -1,0 +1,33 @@
+#Dataset reference file containing file paths to potentially multiple datasets for Panoptic Segmentation in the COCO format - png segmentation masks
+train_set:
+  settings:
+    unify: false
+  sets:
+    train_set1:
+      dataset_name: cityscapes_gtFine_train
+      dataset_type: cityscapes
+      img_data_path: /work/scratch/dziuba/datasets/Cityscapes/leftImg8bit/train
+      segment_info_file_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/gtFine_train.json
+      segment_masks_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/train
+    train_set2:
+      dataset_name: cityscapes_gtFine_test
+      dataset_type: cityscapes
+      img_data_path: /work/scratch/dziuba/datasets/Cityscapes/leftImg8bit/test
+      segment_info_file_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/gtFine_test.json
+      segment_masks_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/test
+  #  train_set2:
+  #    dataset_name: cityscapes_gtCoarse_train_extra
+  #    img_data_path: /work/scratch/dziuba/datasets/Cityscapes/leftImg8bit/train_extra
+  #    segment_info_file_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtCoarse/gtCoarse_train_extra.json
+  #    segment_masks_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtCoarse/train_extra
+
+val_set:
+  settings:
+    unify: false
+  sets:
+    val_set1:
+      dataset_name: cityscapes_gtFine_val
+      dataset_type: cityscapes
+      img_data_path: /work/scratch/dziuba/datasets/Cityscapes/leftImg8bit/val
+      segment_info_file_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/gtFine_val.json
+      segment_masks_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/val
