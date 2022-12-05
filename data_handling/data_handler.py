@@ -1,5 +1,6 @@
 from .data_loader import Img_DataLoader
 from .data_loader import Bbox3D_DataLoader
+from .augmentations import Augmenter
 import torch
 import torchvision
 import os
@@ -43,7 +44,7 @@ class DataHandler(torch.utils.data.Dataset):
 
 
 
-
+        self.augmenter = Augmenter(dataset_general_settings["augmentations"])
 
         self._process_dataset_config(self.dataset_config_set, self.dataset_general_settings)
 
@@ -124,6 +125,13 @@ class DataHandler(torch.utils.data.Dataset):
 
 
         data_item_dict = self.dataset_cls_list[dataset_cls_indx][dataset_cls_offset_indx]
+
+        augmented_data_item_dict = self.augmenter.apply_augmentation(data_item_dict)
+
+        plt.imshow(augmented_data_item_dict["img"])
+        plt.show()
+        plt.imshow(augmented_data_item_dict["annotation"])
+        plt.show()
 
         return data_item_dict
 

@@ -2,7 +2,7 @@ import argparse
 import torch
 from torch.utils.data import DataLoader
 from utils import Config
-from Networks import Net_Wrapper
+from Networks import Model
 import os
 import time
 from tqdm import tqdm
@@ -20,8 +20,8 @@ def evaluate(in_path, out_path, weight_file, config_file):
 
     eval_logger = Evaluation_Logger(out_path)
 
-    net = Net_Wrapper(config_dict["network"]["architecture"], config_dict["network"]["in_channels"],
-                      config_dict["network"]["classes"], config_dict["data"]["img_size"], config_dict["network"]["architecture_config"])
+    net = Model(config_dict["network"]["architecture"], config_dict["network"]["in_channels"],
+                config_dict["network"]["classes"], config_dict["data"]["img_size"], config_dict["network"]["architecture_config"])
 
     net.eval()
 

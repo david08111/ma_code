@@ -523,7 +523,7 @@ def get_model_params(model_name, override_params):
 
 
 # train with Standard methods
-# check more details in paper(EfficientNet: Rethinking Model Scaling for Convolutional Neural Networks)
+# check more details in paper(EfficientNet: Rethinking Model Scaling for Convolutional Neural models)
 url_map = {
     'efficientnet-b0': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b0-355c32eb.pth',
     'efficientnet-b1': 'https://github.com/lukemelas/EfficientNet-PyTorch/releases/download/1.0/efficientnet-b1-f1951068.pth',

@@ -2,7 +2,7 @@ import argparse
 import torch
 from torch.utils.data import DataLoader
 from utils import Config, load_cam_settings, visualize_3d_bboxes
-from Networks import Net_Wrapper
+from Networks import Model
 import os
 import time
 from tqdm import tqdm
@@ -22,7 +22,7 @@ def predict(visualize, in_path, out_path, weight_file, config_file, copy):
 
     cam_config = load_cam_settings(config_dict["data"]["camera_config"])
 
-    net = Net_Wrapper(config_dict["network"]["architecture"], config_dict["network"]["in_channels"], config_dict["network"]["classes"], config_dict["data"]["img_size"], config_dict["network"]["architecture_config"])
+    net = Model(config_dict["network"]["architecture"], config_dict["network"]["in_channels"], config_dict["network"]["classes"], config_dict["data"]["img_size"], config_dict["network"]["architecture_config"])
 
     net.eval()
 

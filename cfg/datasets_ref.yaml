@@ -1,7 +1,7 @@
 #Dataset reference file containing file paths to potentially multiple datasets for Panoptic Segmentation in the COCO format - png segmentation masks
 train_set:
   settings:
-    unify: false
+    unify: false  # for unification of different dataset types
   sets:
     train_set1:
       dataset_name: cityscapes_gtFine_train
@@ -10,11 +10,11 @@ train_set:
       segment_info_file_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/gtFine_train.json
       segment_masks_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/train
     train_set2:
-      dataset_name: cityscapes_gtFine_test
+      dataset_name: cityscapes_gtCoarse_train_extra
       dataset_type: cityscapes
-      img_data_path: /work/scratch/dziuba/datasets/Cityscapes/leftImg8bit/test
-      segment_info_file_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/gtFine_test.json
-      segment_masks_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/test
+      img_data_path: /work/scratch/dziuba/datasets/Cityscapes/leftImg8bit/train_extra
+      segment_info_file_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtCoarse/gtCoarse_train_extra.json
+      segment_masks_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtCoarse/train_extra
   #  train_set2:
   #    dataset_name: cityscapes_gtCoarse_train_extra
   #    img_data_path: /work/scratch/dziuba/datasets/Cityscapes/leftImg8bit/train_extra

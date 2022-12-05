@@ -1,0 +1,82 @@
+settings:
+  annotation_data_type: [panoptic_mask]
+
+transformations: # potentially more settings available but standard ones preffered (configure with kwargs)
+  affine:
+    scale: [0.9, 1.1]
+    translate_percent: [0, 0.1]
+    rotate: [-2, 2]
+  randomcrop:   ## input arguments handled by
+    height: 512
+    width: 1024
+    p: 0.2
+  coarse_dropout:
+    max_holes: 3
+    max_height: 20
+    max_width: 20
+    min_holes: 1
+    fill_value: 0
+    mask_fill_value: 0
+    p: 0.05
+  elastictransform:
+    p: 0.05
+  horizontalflip:
+    p: 0.5
+  maskdropout:
+    max_objects: 1
+    p: 0.05
+  pixeldropout:
+    dropout_prob: 0.01
+    mask_drop_value: 0
+    p: 0.05
+  advancedblur:
+    p: 0.05
+  colorjitter:
+    brightness: 0.1
+    contrast: 0.1
+    saturation: 0.1
+    hue: 0.1
+    p: 0.05
+  downscale:
+    scale_min: 0.2
+    scale_max: 0.2
+    p: 0.05
+  emboss:
+    alpha: [0.1, 0.4]
+    strength: [0.1, 0.5]
+    p: 0.05
+  gaussnoise:
+    var_limit: 15
+    p: 0.05
+  isonoise:
+    color_shift: [0.01, 0.05]
+    intensity: [0.1, 0.3]
+    p: 0.05
+  motionblur:
+    blur_limit: 5
+    p: 0.05
+  randomfog:
+    fog_coef_lower: 0.3
+    fog_coef_upper: 0.6
+    alpha_coef: 0.08
+    p: 0.01
+  randomrain:
+    slant_lower: -10
+    slant_upper: 10
+    drop_length: 20
+    drop_width: 1
+    p: 0.01
+  randomshadow:
+    p: 0.01
+  randomsnow:
+    p: 0.01
+  sharpen:
+    alpha: [0.1, 0.4]
+    lightness: [0.3, 0.7]
+    p: 0.01
+  superpixels:
+    p_replace: 0.1
+    n_segments: 100
+    max_size: 128
+    p: 0.05
+

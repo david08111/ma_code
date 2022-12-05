@@ -1,0 +1,41 @@
+#architecture:
+#  encoder:
+#    - resnet50
+#  decoder:
+#    - Conv2d:
+#        args: [ 3, 16, 25 ]
+#        stride: 1
+#        padding: 2
+#    - ReLU:
+#        inplace: true
+#    - Conv2d:
+#        args: [ 16, 25, 5 ]
+#        stride: 1
+#        padding: 2
+
+#test_architecture:
+#  - Conv2d:
+#      args: [ 3, 16, 25 ]
+#      stride: 1
+#      padding: 2
+#  - ReLU:
+#      inplace: true
+#  - Conv2d:
+#      args: [ 16, 25, 5 ]
+#      stride: 1
+#      padding: 2
+
+architecture:
+  modules:
+    - block_module: efficientnet-b0
+    - native_module:
+        - Conv2d:
+            args: [ 3, 16, 25 ]
+            stride: 1
+            padding: 2
+        - ReLU:
+            inplace: true
+        - Conv2d:
+            args: [ 16, 25, 5 ]
+            stride: 1
+            padding: 2

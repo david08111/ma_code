@@ -1,8 +1,6 @@
-network:
-  architecture: efficientnet-b8
-  architecture_config:
-    activation: sigmoid
-    in_channels: 3
+model:
+  model_architecture_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/model_ref.yaml"
+  AMP: false
 #  norm_type: 'instance'
 #  classes: 7
 
@@ -26,6 +24,7 @@ training:
   save_freq: 10
   num_epochs: 100
   use_cpp: False
+  best_eval_mode: "min"
 
 loss:
   train_loss: 
@@ -37,7 +36,6 @@ loss:
     focal_length: 1000
     img_size: 256
     weight_list: [100000000, 10, 2, 2, 200, 800, 150]
-  best_eval_mode: "min"
   metrics_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/metrics_master.yaml"
 
 
@@ -47,21 +45,10 @@ data:
   num_workers: 0
   img_width: 1024
   img_height: 512
-  data_augmentation_train:
-    rotation: 180
-    translation: 25
-    scaling: 0.1
-    horizont_flip: True
-    vertical_flip: True
-  data_augmentation_val:
-    rotation: 45
-    translation: 25
-    scaling: 0.05
-    horizont_flip: False
-    vertical_flip: False
+  augmentations_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/augmentations.yaml"
 
 logging:
   enable: True
   port: 9999
-  name: "AC"
+  name: "LOG"
   save_path: "/work/scratch/dziuba/ma_code/logs/test_debug"

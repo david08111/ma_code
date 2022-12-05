@@ -1,5 +1,5 @@
-## Deep Learning for 3D BBox detection (and Yaw estimation)
-This project contains the tools to create a dataset and train/evaluate different deep learning models for 3D Bbox detection.
+## Deep Learning Panoptic Segmentation
+This project contains the tools to process a dataset and train/evaluate different deep learning models for Panoptic Segmentation.
 
 ### Installation
 Make sure to have miniconda3 installed on your device.
@@ -9,7 +9,7 @@ To install the environment type
 `conda env create -f /PATH_TO_REPOSITORY/environment.yml`
 
 ### Training
-Before training the network all the hyperparameters have to be set in the config. To start the training use `train_net -c CONFIG_PATH` 
+Before training the network all the hyperparameters have to be set in the general config file and all its predecessors. To start the training use `train_net -c CONFIG_PATH` 
 
 #### Config parameter
 To be added
@@ -17,6 +17,7 @@ To be added
 ### Evaluation
 For evaluation purposes several scripts can be ran.
 
+DEPRECATED!
 For inference use `predict -d INPUT_DATA_PATH -s OUTPUT_PATH -w PATH_TO_WEIGHT_FILE -t THRESHOLD_VALUE -c CONFIG_PATH [-cp] [-v]` to let the model predict according outputs and binarize them with the specified threshold.
 
 (To be implemented:)

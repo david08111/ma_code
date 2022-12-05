@@ -6,7 +6,7 @@ from data_handling import DataHandler, custom_collate_fn_2
 from training import Net_trainer
 from training import Loss_Wrapper
 from training import Metrics_Wrapper
-from Networks import Net_Wrapper
+from Networks import Model
 from torch.utils.data import DataLoader
 
 
@@ -38,7 +38,7 @@ def train_net(config_path, verbose):
         #     pin_memory=True, collate_fn=custom_collate_fn_2)
     }
 
-    net = Net_Wrapper(config_dict["network"]["architecture"], config_dict["network"]["in_channels"], config_dict["network"]["classes"], config_dict["data"]["img_size"], config_dict["network"]["architecture_config"])
+    net = Model(config_dict["network"]["architecture"], config_dict["network"]["in_channels"], config_dict["network"]["classes"], config_dict["data"]["img_size"], config_dict["network"]["architecture_config"])
     # device = torch.device("cpu")
 
     net.model.to(device)

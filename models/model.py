@@ -1,10 +1,21 @@
 import torch
 import torch.nn as nn
 from .efficientnet import EfficientNet
+from .builder import Builder
 
 
-class Net_Wrapper(nn.Module):
-    def __init__(self, net, channels, classes, img_size, architecture_config):
+# class Model(nn.Module):
+#     def __init__(self, net, channels, classes, img_size, architecture_config):
+#         super().__init__()
+#         self.channels = channels
+#         self.img_size = img_size
+#         self.classes = classes
+#         self.net_name = net
+#
+#         if "efficientnet" in net:
+#             self.model = EfficientNet.from_pretrained(model_name=net, num_classes=classes, image_size=img_size, advprop=True)
+class Model(nn.Module):
+    def __init__(self, architecture_config, channels, classes, img_size, architecture_config):
         super().__init__()
         self.channels = channels
         self.img_size = img_size
@@ -15,8 +26,8 @@ class Net_Wrapper(nn.Module):
             self.model = EfficientNet.from_pretrained(model_name=net, num_classes=classes, image_size=img_size, advprop=True)
 
 
-
-
+    def _process_architecture_config(self, config_dict):
+        pass
 
     def forward(self, input):
         x = self.model.forward(input)
