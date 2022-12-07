@@ -18,7 +18,7 @@ import json
 import copy
 
 class DataHandler(torch.utils.data.Dataset):
-    def __init__(self, dataset_config_set, dataset_general_settings, device, *args, **kwargs):
+    def __init__(self, dataset_config_set, general_config, device, *args, **kwargs):
         """ Data Handler class
         Gets path and options to load and handle data in the specified way
         Args:
@@ -36,7 +36,7 @@ class DataHandler(torch.utils.data.Dataset):
         """
 
         self.dataset_config_set = dataset_config_set
-        self.dataset_general_settings = dict(dataset_general_settings)
+        self.dataset_general_settings = dict(general_config["data"])
         self.dataset_general_settings.pop("datasets_split")
 
 
@@ -44,7 +44,7 @@ class DataHandler(torch.utils.data.Dataset):
 
 
 
-        self.augmenter = Augmenter(dataset_general_settings["augmentations"])
+        self.augmenter = Augmenter(self.dataset_general_settings["augmentations"])
 
         self._process_dataset_config(self.dataset_config_set, self.dataset_general_settings)
 
@@ -82,7 +82,7 @@ class DataHandler(torch.utils.data.Dataset):
                     # self.dataset_cls_list.append(Cityscapes_Dataset(dataset_config_sets[key], img_width, img_height, dataset_config_settings))
                 # if curr_dataset_type == "mapillary_vistas":
                 else:
-                    raise("Selected dataset type " + curr_dataset_type + "does not exist!")
+                    raise ValueError("Selected dataset type " + curr_dataset_type + "does not exist!")
 
 
         self.dataset_length_list = [len(dataset_cls) for dataset_cls in self.dataset_cls_list]
@@ -100,7 +100,7 @@ class DataHandler(torch.utils.data.Dataset):
             dataset_length += len(dataset_cls)
 
         if dataset_length == 0:
-            raise("Dataset is empty!")
+            raise ValueError("Dataset is empty!")
 
         return dataset_length
 
@@ -448,7 +448,7 @@ class Base_Dataset_COCO(ABC):
         """
 
         if idx > self.__len__():
-            raise("Index " + idx + " out of range for dataset " + self.dataset_name)
+             raise ValueError("Index " + idx + " out of range for dataset " + self.dataset_name)
 
         img_metadata = self.images_meta_data[idx]
 

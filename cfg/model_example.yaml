@@ -3,14 +3,13 @@
 architecture:
   modules:
     - block_module:
-        settings:
-            pre_trained: True
-            
+#        settings:
+#            pre_trained: True
 #        efficientnet-b0:
 #            num_classes: ?channels?
 #            image_size: ["?img_width?", "?img_height?"]
 #            in_channels: ?channels?
-        efficientnet_b4:
+        efficientnet_b0:
 #            num_classes: 100
             image_size: [ "?img_width?", "?img_height?" ]
 #            in_channels: ?channels?

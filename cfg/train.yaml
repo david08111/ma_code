@@ -1,6 +1,7 @@
 model:
-  model_architecture_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/model_ref.yaml"
+  model_architecture_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/model_example.yaml"
   AMP: false
+  channels: 3
 #  norm_type: 'instance'
 #  classes: 7
 

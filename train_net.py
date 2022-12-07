@@ -6,7 +6,7 @@ from data_handling import DataHandler, custom_collate_fn_2
 from training import Net_trainer
 from training import Loss_Wrapper
 from training import Metrics_Wrapper
-from Networks import Model
+from models import Model
 from torch.utils.data import DataLoader
 
 
@@ -25,11 +25,11 @@ def train_net(config_path, verbose):
 
     data = {
         "train_loader": DataLoader(
-            dataset=DataHandler(config_dict["data"]["datasets_split"]["train_set"], config_dict["data"], device), batch_size=config_dict["data"]["batch_size"], shuffle=True,
+            dataset=DataHandler(config_dict["data"]["datasets_split"]["train_set"], config_dict, device), batch_size=config_dict["data"]["batch_size"], shuffle=True,
             num_workers=config_dict["data"]["num_workers"], drop_last=True, pin_memory=True),
 
         "val_loader": DataLoader(
-            dataset=DataHandler(config_dict["data"]["datasets_split"]["val_set"], config_dict["data"], device),
+            dataset=DataHandler(config_dict["data"]["datasets_split"]["val_set"], config_dict, device),
             batch_size=1, shuffle=False, num_workers=config_dict["data"]["num_workers"], drop_last=False,
             pin_memory=True)
         # "val_loader": DataLoader(
@@ -38,7 +38,7 @@ def train_net(config_path, verbose):
         #     pin_memory=True, collate_fn=custom_collate_fn_2)
     }
 
-    net = Model(config_dict["network"]["architecture"], config_dict["network"]["in_channels"], config_dict["network"]["classes"], config_dict["data"]["img_size"], config_dict["network"]["architecture_config"])
+    model = Model(config_dict)
     # device = torch.device("cpu")
 
     net.model.to(device)

@@ -1,6 +1,6 @@
 import torch.nn
 import collections
-import utils.load_config as ldcfg
+from .load_config import Config
 import torch
 
 class Builder(object):
@@ -70,7 +70,7 @@ def build_network(architecture, builder=Builder(torch.nn.__dict__)):
 if __name__ == "__main__":
     model_file_path = "/work/scratch/dziuba/repos/ma_code/cfg/model_file_test.yaml"
 
-    config = ldcfg.Config()
+    config = Config()
 
     config_dict = config(model_file_path)
 

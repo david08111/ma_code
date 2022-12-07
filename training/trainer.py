@@ -25,7 +25,6 @@ class Net_trainer():
         self.scheduler = Scheduler_Wrapper(scheduler_config, self.optimizer)
         self.criterions = criterions
 
-        self.cam_config = load_cam_settings(kwargs["config_dict"]["data"]["camera_config"])
 
         metric_threshold_step_sizes = []
         metric_num_thresholds = []
