@@ -5,7 +5,7 @@ architecture:
     - block_module:
         settings:
             pre_trained: True
-            
+
 #        efficientnet-b0:
 #            num_classes: ?channels?
 #            image_size: ["?img_width?", "?img_height?"]

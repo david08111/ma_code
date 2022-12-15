@@ -1,5 +1,8 @@
 model:
   model_architecture_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/model_example.yaml"
+  model_architecture_name: efficientnet-b4
+  model_architecture_config:
+    pretrained: True
   AMP: false
   channels: 3
 #  norm_type: 'instance'

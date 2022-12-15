@@ -10,10 +10,25 @@ class Model(nn.Module):
         super().__init__()
 
         self.model_configs = general_config["model"]
+        # self.model = self._get_model_by_name(self.model_configs["model_name"], **self.model_configs)
+
         self.model = self._process_architecture_config(self.model_configs["architecture_config"])
 
+    def _get_model_by_name(self, model_name):
+        if model_name in torchvision.models.__dict__.keys():
+            return self._get_torchvision_backbone_by_name(model_name)
+        elif "efficientnet" in model_name:
+            EfficientNet.from_name(model_name, )
 
-    def _get_backbone_from_architecture(self, model):
+    def _get_torchvision_backbone_by_name(self, model_name):
+        torchvision_model_dict = torchvision.models.__dict__
+        model = torchvision_model_dict[model_name]()
+
+        model = self._remove_linear_layer(model)
+
+        return model
+
+    def _remove_linear_layer(self, model):
         # model_list = list(model.modules())
         model_list = list(model.children())
 
@@ -70,7 +85,7 @@ class Model(nn.Module):
 
 
         if name in torchvision_model_dict.keys():
-            return self._get_backbone_from_architecture(torchvision_model_dict[name](block_config))
+            return self._get_torchvision_backbone_by_name(torchvision_model_dict[name](block_config))
         else:
             raise ValueError("Model Block Module " + name + " not implemented yet!")
 

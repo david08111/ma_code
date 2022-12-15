@@ -17,12 +17,12 @@ def create_config_dict(config_file_path):
     config_dict["data"]["augmentations"] = augmentations_config_dict
 
     ## model architecture_config
+    if "model_architecture_file_path" in config_dict["model"].keys():
+        model_architecture_config_dict = config(os.path.abspath(config_dict["model"]["model_architecture_file_path"]))
 
-    model_architecture_config_dict = config(os.path.abspath(config_dict["model"]["model_architecture_file_path"]))
+        config_dict["model"]["architecture_config"] = model_architecture_config_dict
 
-    config_dict["model"]["architecture_config"] = model_architecture_config_dict
-
-    set_var_vals_by_name(config_dict, config_dict)
+        set_var_vals_by_name(config_dict, config_dict)
 
     return config_dict
 
