@@ -3,22 +3,51 @@ import torch.nn as nn
 import torchvision
 from .efficientnet import EfficientNet
 from utils import Builder
-from .segmentation_models import
+import torchvision.models as torch_models
+import segmentation_models_pytorch as segmentation_models_pt
+
+torchvision_segm_model_map_dict = {"deeplabv3_mobilenet_v3_large": torch_models.segmentation.deeplabv3_mobilenet_v3_large,
+                                "deeplabv3_resnet50": torch_models.segmentation.deeplabv3_resnet50,
+                                "deeplabv3_resnet101": torch_models.segmentation.deeplabv3_resnet101,
+                                "fcn_resnet50": torch_models.segmentation.fcn_resnet50,
+                                "fcn_resnet101": torch_models.segmentation.fcn_resnet101,
+                               "lraspp_mobilenet_v3_large": torch_models.segmentation.lraspp_mobilenet_v3_large}
+torchvision_segm_model_weightscls_map_dict = {"deeplabv3_mobilenet_v3_large": torch_models.MobileNet_V3_Large_Weights,
+                                "deeplabv3_resnet50": torch_models.ResNet50_Weights,
+                                "deeplabv3_resnet101": torch_models.ResNet101_Weights,
+                                "fcn_resnet50": torch_models.ResNet50_Weights,
+                                "fcn_resnet101": torch_models.ResNet101_Weights,
+                               "lraspp_mobilenet_v3_large": torch_models.MobileNet_V3_Large_Weights}
 
 class Model(nn.Module):
     def __init__(self, general_config, *args, **kwargs):
         super().__init__()
 
         self.model_configs = general_config["model"]
-        # self.model = self._get_model_by_name(self.model_configs["model_name"], **self.model_configs)
 
-        self.model = self._process_architecture_config(self.model_configs["architecture_config"])
+        self.model_architecture_config = dict(self.model_configs["model_architecture"])
+        self.model_architecture_name = self.model_architecture_config.pop("model_architecture_name")
 
-    def _get_model_by_name(self, model_name):
-        if model_name in torchvision.models.__dict__.keys():
+        self.model = self._get_model_by_name(self.model_architecture_name, self.model_architecture_config)
+
+        pass
+
+        # self.model = self._process_architecture_config(self.model_configs["architecture_config"])
+
+    def _get_model_by_name(self, model_name, model_architecture_config):
+
+        torchvision_model_dict = torchvision.models.__dict__.keys()
+
+        model_architecture_config_tmp = dict(model_architecture_config)
+        if model_name in torchvision_model_dict:   # pointless?
             return self._get_torchvision_backbone_by_name(model_name)
-        elif "efficientnet" in model_name:
-            EfficientNet.from_name(model_name, )
+        elif model_name in torchvision_segm_model_map_dict.keys():
+            if model_architecture_config_tmp.pop("pretrained"):
+                model_architecture_config_tmp["weights_backbone"] = torchvision_segm_model_weightscls_map_dict[model_name]
+            model_architecture_config_tmp["num_classes"] = model_architecture_config_tmp.pop("embedding_dims")
+
+            return torchvision_segm_model_map_dict[model_name](**model_architecture_config_tmp)
+
 
     def _get_torchvision_backbone_by_name(self, model_name):
         torchvision_model_dict = torchvision.models.__dict__
@@ -66,10 +95,10 @@ class Model(nn.Module):
         test10 = torchvision_model_dict["squeezenet1_1"]()
         test11 = torchvision_model_dict["vgg16_bn"]()
 
-        from torchvision.models.segmentation import fcn_resnet50, deeplabv3_resnet50
 
-        test12 = fcn_resnet50()
-        test13 = deeplabv3_resnet50()
+
+        # test12 = fcn_resnet50()
+        # test13 = deeplabv3_resnet50()
 
         test_new = self._get_backbone_from_architecture(test)
         test_new2 = self._get_backbone_from_architecture(test2)
@@ -130,24 +159,4 @@ class Model(nn.Module):
         #     x = torch.nn.functional.interpolate(x[:, :, :, 0], (x.shape[0], self.img_size, self.img_size))
 
         return x
-
-    def create_final_outputs(self, outputs, focal_length, net_input_img_size):
-        # relcam_depth = outputs[:, 0].clone()
-        # outputs[:, 0] = outputs[:, 0] * focal_length
-        final_outputs = outputs.clone()
-        final_outputs[:, 1] = (outputs[:, 1] - 0.5) * 180
-        final_outputs[:, 2] = outputs[:, 2] * net_input_img_size
-        final_outputs[:, 3] = outputs[:, 3] * net_input_img_size
-        final_outputs[:, 4] = outputs[:, 4] * net_input_img_size * outputs[:, 0]
-        final_outputs[:, 5] = outputs[:, 5] * net_input_img_size * outputs[:, 0]
-        final_outputs[:, 6] = outputs[:, 6] * net_input_img_size * outputs[:, 0]
-        # outputs[:, 0] = outputs[:, 0] * focal_length
-        final_outputs[:, 0] = outputs[:, 0] * focal_length # CHANGE BACK TO ABOVE VARIANT DUE TO RELDEPTH
-
-
-        return final_outputs
-
-        # @staticmethod
-    # def closure(model, data_dict: dict, optimizers: dict, criterions={}, metrics={}, fold=0, **kwargs):
-    #     pass
 
