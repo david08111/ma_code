@@ -1,8 +1,9 @@
 model:
-  model_architecture_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/model_example.yaml"
-  model_architecture_name: efficientnet-b4
-  model_architecture_config:
+#  model_architecture_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/model_example.yaml"
+  model_architecture:
+    model_architecture_name: efficientnet-b4
     pretrained: True
+
   AMP: false
   channels: 3
 #  norm_type: 'instance'
@@ -23,7 +24,7 @@ scheduler:
   cooldown: 20
 
 training:
-  save_path: "/work/scratch/dziuba/ma_code/trainings/test_debug"
+  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/test_debug"
   gpu_ids: [0]
   save_freq: 10
   num_epochs: 100
@@ -55,4 +56,4 @@ logging:
   enable: True
   port: 9999
   name: "LOG"
-  save_path: "/work/scratch/dziuba/ma_code/logs/test_debug"
+  save_path: "/work/scratch/dziuba/ma_code_runs/logs/test_debug"

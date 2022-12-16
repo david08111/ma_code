@@ -3,7 +3,7 @@ import torch.nn as nn
 import torchvision
 from .efficientnet import EfficientNet
 from utils import Builder
-
+from .segmentation_models import
 
 class Model(nn.Module):
     def __init__(self, general_config, *args, **kwargs):
