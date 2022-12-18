@@ -41,7 +41,7 @@ def train_net(config_path, verbose):
     model = Model(config_dict)
     # device = torch.device("cpu")
 
-    net.model.to(device)
+    model.to(device)
     # {config_dict["data"]["metrics"][key]: Metrics_Wrapper(config_dict["data"]["metrics"][key]) for key in
     #  config_dict["data"]["metrics"]}
     criterions = {
@@ -51,10 +51,10 @@ def train_net(config_path, verbose):
     }
 
 
-    net_trainer = Net_trainer(net, config_dict["training"]["save_path"], config_dict["training"]["save_freq"], config_dict["training"]["num_epochs"], config_dict["optimizer"], config_dict["scheduler"], config_dict["training"]["best_eval_mode"], device, criterions, config_dict=config_dict)
+    net_trainer = Net_trainer(model, config_dict["training"]["save_path"], config_dict["training"]["save_freq"], config_dict["training"]["num_epochs"], config_dict["optimizer"], config_dict["scheduler"], config_dict["training"]["best_eval_mode"], device, criterions, config_dict=config_dict)
 
 
-    net_trainer.train(net, device, data)
+    net_trainer.train(model, device, data)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
