@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torchvision
-from .efficientnet import EfficientNet
 from utils import Builder
 import torchvision.models as torch_models
 import segmentation_models_pytorch as segmentation_models_pt
@@ -20,16 +19,13 @@ class Model(nn.Module):
 
         self.model = ModelAssociater.get_model_by_name(self.model_architecture_origin, self.model_architecture_name, self.model_architecture_config)
 
-        pass
-
         # self.model = self._process_architecture_config(self.model_configs["architecture_config"])
 
 
     def forward(self, input):
-        x = self.model.forward(input)
+        output_dict = {}
 
-        # if "refine_lw_net" in self.net_name:
-        #     x = torch.nn.functional.interpolate(x[:, :, :, 0], (x.shape[0], self.img_size, self.img_size))
+        output_dict["final_pixel_embeddings"] = self.model.forward(input)
 
-        return x
+        return output_dict
 

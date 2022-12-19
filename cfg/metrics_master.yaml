@@ -1,0 +1,164 @@
+metrics:
+  metric1:
+    metric_type: "mAP"
+    matcher:
+      matching_crit: "confidence"
+      matching_mode: "gr"
+      matching_filter:
+        matching_filter1:
+          metric_filter_type: "matching"
+          filter_name: "distance3d"
+          filter_list: [0.2, 0.6, 1, 1.5, 2, 3, 4]
+          filter_mode: "greq"
+          matching_crit: "confidence"
+          matching_mode: "gr"
+    metric_filter:
+      metric_filter1:
+        filter_name: "depth"
+        metric_filter_type: "threshold"
+        filter_mode: "lw"
+        filter_list: [70]
+      metric_filter2:
+        filter_name: "distance3d"
+        metric_filter_type: "threshold"
+        filter_list: [10]
+      metric_filter3:
+        filter_name: "confidence"
+        metric_filter_type: "threshold"
+        filter_list: [0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+  metric2:
+    metric_type: "mAP"
+    matcher:
+      matching_crit: "confidence"
+      matching_mode: "gr"
+      matching_filter:
+        matching_filter1:
+          metric_filter_type: "matching"
+          filter_name: "distance3d"
+          filter_list: [0.2, 0.6, 1, 1.5, 2, 3, 4]
+          filter_mode: "lweq"
+          matching_crit: "confidence"
+          matching_mode: "gr"
+    metric_filter:
+      metric_filter1:
+        filter_name: "depth"
+        metric_filter_type: "range_selection"
+        filter_list: [5, 10, 15, 20, 25, 30, 35]
+      metric_filter2:
+        filter_name: "distance3d"
+        metric_filter_type: "threshold"
+        filter_mode: "lweq"
+        filter_list: [10]
+      metric_filter3:
+        filter_name: "confidence"
+        metric_filter_type: "threshold"
+        filter_list: [0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+  metric3:
+    metric_type: "precision"
+    matcher:
+      matching_crit: "confidence"
+      matching_mode: "gr"
+      matching_filter:
+        matching_filter1:
+          metric_filter_type: "matching"
+          filter_name: "distance3d"
+          filter_list: [0.2, 0.6, 1, 1.5, 2, 3, 4]
+          filter_mode: "lweq"
+          matching_crit: "confidence"
+          matching_mode: "gr"
+    metric_filter:
+      metric_filter1:
+        filter_name: "depth"
+        metric_filter_type: "range_selection"
+        filter_list: [70]
+      metric_filter2:
+        filter_name: "distance3d"
+        metric_filter_type: "threshold"
+        filter_mode: "lweq"
+        filter_list: [10]
+      metric_filter3:
+        filter_name: "confidence"
+        metric_filter_type: "threshold"
+        filter_list: [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+  metric4:
+    metric_type: "recall"
+    matcher:
+      matching_crit: "confidence"
+      matching_mode: "gr"
+      matching_filter:
+        matching_filter1:
+          metric_filter_type: "matching"
+          filter_name: "distance3d"
+          filter_list: [0.2, 0.6, 1, 1.5, 2, 3, 4]
+          filter_mode: "lweq"
+          matching_crit: "confidence"
+          matching_mode: "gr"
+    metric_filter:
+      metric_filter1:
+        filter_name: "depth"
+        metric_filter_type: "range_selection"
+        filter_list: [70]
+      metric_filter2:
+        filter_name: "distance3d"
+        metric_filter_type: "threshold"
+        filter_mode: "lweq"
+        filter_list: [10]
+      metric_filter3:
+        filter_name: "confidence"
+        metric_filter_type: "threshold"
+        filter_list: [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+  metric5:
+    metric_type: "f1_score"
+    matcher:
+      matching_crit: "confidence"
+      matching_mode: "gr"
+      matching_filter:
+        matching_filter1:
+          metric_filter_type: "matching"
+          filter_name: "distance3d"
+          filter_list: [0.2, 0.6, 1, 1.5, 2, 3, 4]
+          filter_mode: "lweq"
+          matching_crit: "confidence"
+          matching_mode: "gr"
+    metric_filter:
+      metric_filter1:
+        filter_name: "depth"
+        metric_filter_type: "range_selection"
+        filter_list: [70]
+      metric_filter2:
+        filter_name: "distance3d"
+        metric_filter_type: "threshold"
+        filter_mode: "lweq"
+        filter_list: [10]
+      metric_filter3:
+        filter_name: "confidence"
+        metric_filter_type: "threshold"
+        filter_list: [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+  metric5:
+    metric_type: "false_pos_rate"
+    matcher:
+      matching_crit: "confidence"
+      matching_mode: "gr"
+      matching_filter:
+        matching_filter1:
+          metric_filter_type: "matching"
+          filter_name: "distance3d"
+          filter_list: [0.2, 0.6, 1, 1.5, 2, 3, 4]
+          filter_mode: "lweq"
+          matching_crit: "confidence"
+          matching_mode: "gr"
+    metric_filter:
+      metric_filter1:
+        filter_name: "depth"
+        metric_filter_type: "range_selection"
+        filter_list: [70]
+      metric_filter2:
+        filter_name: "distance3d"
+        metric_filter_type: "threshold"
+        filter_mode: "lweq"
+        filter_list: [10]
+      metric_filter3:
+        filter_name: "confidence"
+        metric_filter_type: "threshold"
+        filter_list: [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+

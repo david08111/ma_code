@@ -6,12 +6,24 @@ import numpy as np
 
 class Loss_Wrapper():
     def __init__(self, loss_config):
-        self.loss_type = loss_config.pop("loss_type")
-        self.loss_config = loss_config
-        self.loss = self.set_loss(self.loss_type, loss_config)
+        self.loss_type = list(loss_config.keys())[0] # if multiple keys then only first one describes loss type
+        self.loss_config = loss_config[self.loss_type]
+        self.loss = self.parse_loss_config(self.loss_type, self.loss_config)
 
-    def set_loss(self, loss_type, loss_config):
-        if loss_type == "mse":
+    def parse_loss_config(self, loss_type, loss_config):
+        if loss_type == "weighted_sum":
+            return Weighted_sum(**loss_config)
+        elif loss_type == "average_sum":
+            return Average_sum(**loss_config)
+        elif loss_type == "info_nce":
+            return InfoNCE(**loss_config)
+        elif loss_type == "discriminative_contrast": # from the related paper
+            return Discriminative_contrast_loss(**loss_config)
+        elif loss_type == "spherical_contrast_panoptic":
+            return Panoptic_spherical_contrastive_loss(**loss_config)
+
+        ## deprecated
+        elif loss_type == "mse":
             return nn_modules.MSELoss(**loss_config)
         elif loss_type == "l1":
             return nn_modules.L1Loss(**loss_config)
@@ -91,7 +103,63 @@ class Metrics_Wrapper():
         # elif metric_type == "confusion_matrix":
         #     raise NotImplementedError
 
+class InfoNCE(nn.Module):
+    def __init__(self, temperature):
+        self.temperature = temperature
 
+    def forward(self, outputs_dict, labels_dict):
+        pass
+
+class Discriminative_contrast_loss(nn.Module):
+    def __init__(self, margin_variance, margin_distance, weighting_list):
+        self.margin_variance = margin_variance
+        self.margin_distance = margin_distance
+        self.weighting_list = weighting_list
+
+    def forward(self, outputs_dict, labels_dict):
+        pass
+
+class Panoptic_spherical_contrastive_loss(nn.Module):
+    def __init__(self):
+        pass
+
+    def forward(self, outputs_dict, labels_dict):
+        pass
+
+class Weighted_sum(nn.Module):
+    def __init__(self, loss_list, weights_list):
+        self.loss_list = []
+        self.weights_list = weights_list
+
+        for loss in loss_list:
+            self.loss_list.append(Loss_Wrapper(loss))
+
+
+    def forward(self, outputs_dict, labels_dict):
+        total_loss = 0
+
+        for i in range(len(self.loss_list)):
+            total_loss += self.weights_list * self.loss_list[i](outputs_dict, labels_dict)
+
+        return total_loss
+
+class Average_sum(nn.Module):
+    def __init__(self, loss_list):
+        self.loss_list = []
+
+        for loss in loss_list:
+            self.loss_list.append(Loss_Wrapper(loss))
+
+
+    def forward(self, outputs_dict, labels_dict):
+        total_loss = 0
+
+        for i in range(len(self.loss_list)):
+            total_loss += self.loss_list[i](outputs_dict, labels_dict)
+
+        return total_loss / len(self.loss_list)
+
+## from here on deprecated - maybe still usefull
 class BBox3d_custom(nn.Module):
     def __init__(self, focal_length, img_size, weight_list):
         super(BBox3d_custom, self).__init__()

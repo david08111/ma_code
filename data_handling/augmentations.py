@@ -3,7 +3,7 @@ import os
 import albumentations as albtions
 
 
-class Augmenter():
+class Augmentation_Wrapper():
     def __init__(self, augmentation_config):
 
         self.augmentation_config = augmentation_config

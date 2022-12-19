@@ -45,8 +45,8 @@ def train_net(config_path, verbose):
     # {config_dict["data"]["metrics"][key]: Metrics_Wrapper(config_dict["data"]["metrics"][key]) for key in
     #  config_dict["data"]["metrics"]}
     criterions = {
-        "criterion_train" : Loss_Wrapper(config_dict["training"]["train_loss"]),
-        "criterion_val" : Loss_Wrapper(config_dict["training"]["val_loss"]),
+        "criterion_train" : Loss_Wrapper(config_dict["loss"]["train_loss"]),
+        "criterion_val" : Loss_Wrapper(config_dict["loss"]["val_loss"]),
         "criterion_metrics" : { key: Metrics_Wrapper(config_dict["data"]["metrics"][key]) for key in config_dict["data"]["metrics"]}
     }
 

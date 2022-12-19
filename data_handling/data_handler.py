@@ -1,6 +1,6 @@
 from .data_loader import Img_DataLoader
 from .data_loader import Bbox3D_DataLoader
-from .augmentations import Augmenter
+from .augmentations import Augmentation_Wrapper
 import torch
 import torchvision
 import os
@@ -44,7 +44,7 @@ class DataHandler(torch.utils.data.Dataset):
 
 
 
-        self.augmenter = Augmenter(self.dataset_general_settings["augmentations"])
+        self.augmenter = Augmentation_Wrapper(self.dataset_general_settings["augmentations"])
 
         self._process_dataset_config(self.dataset_config_set, self.dataset_general_settings)
 

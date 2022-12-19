@@ -36,16 +36,29 @@ training:
   best_eval_mode: "min"
 
 loss:
-  train_loss: 
-    loss_type: "mse"
-    focal_length: 1000
-    img_size: 256
+  train_loss:
+    weighted_sum:
+      loss_list:
+        - info_nce:
+            temperature: 0.1
+        - info_nce:
+            temperature: 0.6
+      weights_list: [0.5, 0.2]
   val_loss:
-    loss_type: "threedbbox_mse"
-    focal_length: 1000
-    img_size: 256
-    weight_list: [100000000, 10, 2, 2, 200, 800, 150]
-  metrics_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/metrics_master.yaml"
+    weighted_sum:
+      loss_list:
+        - discriminative_loss: # settings as in "Semantic Instance Segmentation with a Discriminative Loss Function" paper for cityscapes
+            margin_variance: 0.5
+            margin_distance: 1.5
+            weighting_list: [1, 1, 0.001]
+        - discriminative_loss:
+            margin_variance: 1
+            margin_distance: 3
+            weighting_list: [ 1, 1, 0.1 ]
+      weights_list: [ 1, 0.7 ]
+  metrics:
+    -
+#  metrics_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/metrics_master.yaml"
 
 
 data:
