@@ -9,9 +9,10 @@ To install the environment type
 `conda env create -f /PATH_TO_REPOSITORY/environment.yml`
 
 Then install the proper torch, torchvision and torchaudio version using pip - (switch to full version in environment.yml or pytorch 2.0) 
+
 `pip install torch==1.12.1+cu116 torchvision==0.13.1+cu116 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu116`
 
-Finally, install the submodules as packages with pip
+Finally, install the submodules as packages with
 `pip install -e PATH_TO_SUBMODULE`
 
 ### Training
