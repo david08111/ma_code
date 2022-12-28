@@ -73,6 +73,7 @@ def visualize(json_file, segmentations_folder, img_folder):
             dtype=np.uint8
         )
         segmentation_id = rgb2id(segmentation)
+        segmentation_id_list = np.unique(segmentation_id).tolist()
         # find segments boundaries
 
         ##### workaround for boundary function since there is a not solved bug when source image type != 8bit

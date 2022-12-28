@@ -108,7 +108,7 @@ class InfoNCE(nn.Module):
         self.temperature = temperature
 
     def forward(self, outputs_dict, labels_dict):
-        pass
+        raise ValueError("Discriminative_contrast_loss not implemented yet!")
 
 class Discriminative_contrast_loss(nn.Module):
     def __init__(self, margin_variance, margin_distance, weighting_list):
@@ -117,14 +117,29 @@ class Discriminative_contrast_loss(nn.Module):
         self.weighting_list = weighting_list
 
     def forward(self, outputs_dict, labels_dict):
-        pass
+        raise ValueError("Discriminative_contrast_loss not implemented yet!")
 
 class Panoptic_spherical_contrastive_loss(nn.Module):
-    def __init__(self):
-        pass
+    def __init__(self, cat_id_radius_order_map_list, radius_diff_dist=1, radius_start_val=0, radius_loss_weight=0.5, similarity_loss_weight=0.5, hypsph_radius_map_list=None):
+
+        self.cat_id_radius_order_map_list = cat_id_radius_order_map_list
+        self.radius_diff_dist = radius_diff_dist
+        self.radius_start_val = radius_start_val
+
+        self.radius_loss_weight = radius_loss_weight
+        self.similarity_loss_weight = similarity_loss_weight
+
+        if hypsph_radius_map_list:
+            self.hypsph_radius_map_list = hypsph_radius_map_list
+        else:
+            self.hypsph_radius_map_list = list(range(self.radius_start_val, self.radius_start_val + self.radius_diff_dist * len(self.cat_id_radius_order_map_list), self.radius_diff_dist))
 
     def forward(self, outputs_dict, labels_dict):
-        pass
+
+
+        embeddings = outputs_dict["embeddings"]
+
+
 
 class Weighted_sum(nn.Module):
     def __init__(self, loss_list, weights_list):

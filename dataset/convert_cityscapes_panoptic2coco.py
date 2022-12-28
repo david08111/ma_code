@@ -19,11 +19,11 @@ try:
 except Exception:
     raise Exception("Please load Cityscapes scripts from https://github.com/mcordts/cityscapesScripts")
 
-original_format_folder = './gtFine/val/'
-# folder to store panoptic PNGs
-out_folder = './cityscapes_data/cityscapes_panoptic_val/'
-# json with segmentations information
-out_file = './cityscapes_data/cityscapes_panoptic_val.json'
+# original_format_folder = './gtFine/val/'
+# # folder to store panoptic PNGs
+# out_folder = './cityscapes_data/cityscapes_panoptic_val/'
+# # json with segmentations information
+# out_file = './cityscapes_data/cityscapes_panoptic_val.json'
 
 def panoptic_converter(original_format_folder, out_folder, out_file):
 
