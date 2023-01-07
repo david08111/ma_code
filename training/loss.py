@@ -4,6 +4,8 @@ import torch.nn.modules as nn_modules
 import torch.nn.functional as F
 import numpy as np
 
+from .metrics_new import pq_compute_custom, PQStat
+
 class Loss_Wrapper():
     def __init__(self, loss_config):
         self.loss_type = list(loss_config.keys())[0] # if multiple keys then only first one describes loss type
@@ -100,8 +102,58 @@ class Metrics_Wrapper():
             return BBox3D_IOU(**metric_config)
         elif metric_type == "bbox3d_bev_iou":
             return BBox3D_BEV_IOU(**metric_config)
+        elif metric_type == "panoptic_quality":
+            return
+        elif metric_type == "recognition_quality":
+            return
+        elif metric_type == "segmentation_quality":
+            return
         # elif metric_type == "confusion_matrix":
         #     raise NotImplementedError
+
+class Panoptic_Quality(nn.Module):
+    def __init__(self, filter=None):
+        self.filter = filter
+        self.metric_tmp = PQStat()
+        self.metric = None
+
+    def forward(self, outputs, labels, *args, **kwargs):
+
+        new_pq_stat = pq_compute_custom(outputs, labels, kwargs["categories"], *args, **kwargs)
+
+        self.metric_tmp += new_pq_stat
+        # implement averaging over batch
+
+    def process_end_batch(self, *args, **kwargs):
+        metrics = [("All", None), ("Things", True), ("Stuff", False)]
+        results = {}
+        for name, isthing in metrics:
+            results[name], per_class_results = self.metric_tmp.pq_average(kwargs["categories"], isthing=isthing)
+            # if name == 'All':
+            results[name + '_per_class'] = per_class_results
+
+        self.metric = results
+
+
+
+#
+# class Segmentation_Quality(nn.Module):
+#     def __init__(self, filter=None):
+#         self.filter = filter
+#
+#     def forward(self, outputs, labels, *args, **kwargs):
+#         results = pq_compute_custom(outputs, labels, kwargs["categories"], *args, **kwargs)
+#         # need to filter for pq
+#         return results
+#
+# class Recognition_Quality(nn.Module):
+#     def __init__(self, filter=None):
+#         self.filter = filter
+#
+#     def forward(self, outputs, labels, *args, **kwargs):
+#         results = pq_compute_custom(outputs, labels, kwargs["categories"], *args, **kwargs)
+#         # need to filter for pq
+#         return results
 
 class InfoNCE(nn.Module):
     def __init__(self, temperature):

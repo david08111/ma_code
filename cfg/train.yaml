@@ -10,6 +10,19 @@ model:
 
   AMP: false
   channels: 3
+  output_creation:
+    multi_sphere_association:
+      cat_id_radius_order_map_list: [ 7, 8, 11, 12, 13, 17, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 31, 32, 33 ] #describes the mapping of the semantic class to the order of hyperspheres - from small hypersphere to big or regarding to index
+      radius_diff_dist: 1           # difference to next class association radius
+      radius_start_val: 0           # start radius value
+      soft_association_margin: 0.5  # max deviation from radius to still associate to closest radius
+      instance_clustering_method:
+        dbscan: {} # no args specified
+
+
+
+
+
 #  norm_type: 'instance'
 #  classes: 7
 
@@ -73,7 +86,9 @@ loss:
 #            weighting_list: [ 1, 1, 0.1 ]
 #      weights_list: [ 1, 0.7 ]
   metrics:
-    - Test
+    - panoptic_quality:
+        filter: None
+
 #  metrics_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/metrics_master.yaml"
 
 
