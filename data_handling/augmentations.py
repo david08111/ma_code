@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 import os
 import albumentations as albtions
+from matplotlib import pyplot as plt
+import numpy as np
 
 
 class Augmentation_Wrapper():
@@ -67,8 +69,34 @@ class Augmentation_Wrapper():
 
     def apply_augmentation(self, data_dict):
         img = data_dict["img"]
-        mask = data_dict["annotation"]
+        mask = data_dict["annotation_mask"]
+
+        # plt.imshow(img)
+        # plt.show()
+        # plt.imshow(mask)
+        # plt.show()
+
+        # test = data_dict["annotations_data"]["image_id"].strip()
+        # if test == "konstanz_000000_000835":
+        #     pass
+        #
+        # print("Image ID: " + data_dict["annotations_data"]["image_id"])
+        # print("Img dtype: " + str(img.dtype))
+        # print("Mask dtype: " + str(mask.dtype))
+
         transformed = self.transform(image=img, mask=mask)
 
-        return {"img": transformed["image"],
-                "annotation": transformed["mask"]}
+        data_dict["img"] = transformed["image"]
+        data_dict["annotation_mask"] = transformed["mask"]
+
+        # plt.imshow(transformed["image"])
+        # plt.show()
+        # plt.imshow(transformed["mask"])
+        # plt.show()
+
+
+        return data_dict
+
+        # return {"img": transformed["image"],
+        #         "annotation_mask": transformed["mask"],
+        #         "annotations_data": data_dict["annotations_data"]}

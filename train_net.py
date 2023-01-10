@@ -2,7 +2,7 @@ import torch
 import argparse
 import os
 from utils import Config, create_config_dict
-from data_handling import DataHandler, custom_collate_fn_2
+from data_handling import DataHandler, custom_collate_fn
 from training import Net_trainer
 from training import Loss_Wrapper
 from training import Metrics_Wrapper
@@ -21,17 +21,18 @@ def train_net(config_path, verbose):
     # dataset_config_dict = create_dataset_config(os.path.abspath(config_dict["data"]["datasets_file_path"]), config_dict)
     # dataset_config_dict = config(os.path.abspath(config_dict["data"]["datasets_file_path"]))
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if not config_dict["training"]["use_cpp"] else "cpu")
 
     data = {
         "train_loader": DataLoader(
             dataset=DataHandler(config_dict["data"]["datasets_split"]["train_set"], config_dict, device), batch_size=config_dict["data"]["batch_size"], shuffle=True,
-            num_workers=config_dict["data"]["num_workers"], drop_last=True, pin_memory=True),
+            num_workers=config_dict["data"]["num_workers"], drop_last=True, pin_memory=True, collate_fn=custom_collate_fn),
 
         "val_loader": DataLoader(
             dataset=DataHandler(config_dict["data"]["datasets_split"]["val_set"], config_dict, device),
             batch_size=1, shuffle=False, num_workers=config_dict["data"]["num_workers"], drop_last=False,
-            pin_memory=True)
+            pin_memory=True, collate_fn=custom_collate_fn)
         # "val_loader": DataLoader(
         #     dataset=DataHandler(config_dict["data"]["datasets_split"]["val_set"], config_dict["data"], device),
         #     batch_size=1, shuffle=False, num_workers=config_dict["data"]["num_workers"], drop_last=False,
@@ -47,7 +48,7 @@ def train_net(config_path, verbose):
     criterions = {
         "criterion_train" : Loss_Wrapper(config_dict["loss"]["train_loss"]),
         "criterion_val" : Loss_Wrapper(config_dict["loss"]["val_loss"]),
-        "criterion_metrics" : { list(config_dict["loss"]["metrics"][i].keys())[0]: Metrics_Wrapper(config_dict["loss"]["metrics"][i]) for i in config_dict["loss"]["metrics"]}
+        "criterion_metrics" : { list(metric_elem_dict.keys())[0]: Metrics_Wrapper(metric_elem_dict) for metric_elem_dict in config_dict["loss"]["metrics"]}
     }
 
 

@@ -55,59 +55,64 @@ class Loss_Wrapper():
 
 class Metrics_Wrapper():
     def __init__(self, metric_config):
-        self.metric_type = metric_config.pop("metric_type")
-        self.metric_config = metric_config.copy()
-        if "num_thresholds" in metric_config.keys():
-            metric_config.pop("num_thresholds")
-        self.metric = self.set_metric(self.metric_type, metric_config)
 
-    def set_metric(self, metric_type, metric_config):
-        if metric_type == "bin_dice":
+        # self.metric_config = dict(metric_config)
+
+        self.metric_name = list(metric_config.keys())[0]
+        self.metric_config = metric_config[self.metric_name]
+
+        # self.metric_type = metric_config.pop()
+        # if "num_thresholds" in metric_config.keys():
+        #     metric_config.pop("num_thresholds")
+        self.metric = self.set_metric(self.metric_name, self.metric_config)
+
+    def set_metric(self, metric_name, metric_config):
+        if metric_name == "bin_dice":
             return BinaryDiceLoss(**metric_config)
-        elif metric_type == "dice":
+        elif metric_name == "dice":
             return DiceLoss(**metric_config)
-        elif metric_type == "iou":
+        elif metric_name == "iou":
             return IoU(**metric_config)
-        elif metric_type == "accuracy":
+        elif metric_name == "accuracy":
             return Accuracy(**metric_config)
-        elif metric_type == "precision":
+        elif metric_name == "precision":
             return Precision(**metric_config)
-        elif metric_type == "recall":
+        elif metric_name == "recall":
             return Recall(**metric_config)
-        elif metric_type == "f1_score":
+        elif metric_name == "f1_score":
             return F1_Score(**metric_config)
-        elif metric_type == "false_pos_rate":
+        elif metric_name == "false_pos_rate":
             return False_Pos_Rate(**metric_config)
-        elif metric_type == "class_cases":
+        elif metric_name == "class_cases":
             return Classification_cases(**metric_config)
-        elif metric_type == "mse_relcamdepth":
+        elif metric_name == "mse_relcamdepth":
             return MSE_relCamDepth(**metric_config)
-        elif metric_type == "mse_relyaw":
+        elif metric_name == "mse_relyaw":
             return MSE_relYaw(**metric_config)
-        elif metric_type == "mse_objpt":
+        elif metric_name == "mse_objpt":
             return MSE_objPT(**metric_config)
-        elif metric_type == "mse_objpt_x":
+        elif metric_name == "mse_objpt_x":
             return MSE_objPT_X(**metric_config)
-        elif metric_type == "mse_objpt_y":
+        elif metric_name == "mse_objpt_y":
             return MSE_objPT_Y(**metric_config)
-        elif metric_type == "mse_bboxshape":
+        elif metric_name == "mse_bboxshape":
             return MSE_BBoxShape(**metric_config)
-        elif metric_type == "mse_bboxshape_1":
+        elif metric_name == "mse_bboxshape_1":
             return MSE_BBoxShape_1(**metric_config)
-        elif metric_type == "mse_bboxshape_2":
+        elif metric_name == "mse_bboxshape_2":
             return MSE_BBoxShape_2(**metric_config)
-        elif metric_type == "mse_bboxshape_3":
+        elif metric_name == "mse_bboxshape_3":
             return MSE_BBoxShape_3(**metric_config)
-        elif metric_type == "bbox3d_iou":
-            return BBox3D_IOU(**metric_config)
-        elif metric_type == "bbox3d_bev_iou":
+        # elif metric_name == "bbox3d_iou":
+            # return BBometric_namex3D_IOU(**metric_config)
+        elif metric_name == "bbox3d_bev_iou":
             return BBox3D_BEV_IOU(**metric_config)
-        elif metric_type == "panoptic_quality":
-            return
-        elif metric_type == "recognition_quality":
-            return
-        elif metric_type == "segmentation_quality":
-            return
+        elif metric_name == "panoptic_quality":
+            return Panoptic_Quality
+        elif metric_name == "recognition_quality":
+            return Recognition_Quality(**metric_config)
+        elif metric_name == "segmentation_quality":
+            return Segmentation_Quality(**metric_config)
         # elif metric_type == "confusion_matrix":
         #     raise NotImplementedError
 
@@ -136,24 +141,24 @@ class Panoptic_Quality(nn.Module):
 
 
 
-#
-# class Segmentation_Quality(nn.Module):
-#     def __init__(self, filter=None):
-#         self.filter = filter
-#
-#     def forward(self, outputs, labels, *args, **kwargs):
-#         results = pq_compute_custom(outputs, labels, kwargs["categories"], *args, **kwargs)
-#         # need to filter for pq
-#         return results
-#
-# class Recognition_Quality(nn.Module):
-#     def __init__(self, filter=None):
-#         self.filter = filter
-#
-#     def forward(self, outputs, labels, *args, **kwargs):
-#         results = pq_compute_custom(outputs, labels, kwargs["categories"], *args, **kwargs)
-#         # need to filter for pq
-#         return results
+# WIP
+class Segmentation_Quality(nn.Module):
+    def __init__(self, filter=None):
+        self.filter = filter
+
+    def forward(self, outputs, labels, *args, **kwargs):
+        results = pq_compute_custom(outputs, labels, kwargs["categories"], *args, **kwargs)
+        # need to filter for pq
+        return results
+# WIP
+class Recognition_Quality(nn.Module):
+    def __init__(self, filter=None):
+        self.filter = filter
+
+    def forward(self, outputs, labels, *args, **kwargs):
+        results = pq_compute_custom(outputs, labels, kwargs["categories"], *args, **kwargs)
+        # need to filter for pq
+        return results
 
 class InfoNCE(nn.Module):
     def __init__(self, temperature):
@@ -173,7 +178,7 @@ class Discriminative_contrast_loss(nn.Module):
 
 class Panoptic_spherical_contrastive_loss(nn.Module):
     def __init__(self, cat_id_radius_order_map_list, radius_diff_dist=1, radius_start_val=0, radius_loss_weight=0.5, similarity_loss_weight=0.5, hypsph_radius_map_list=None):
-
+        super().__init__()
         self.cat_id_radius_order_map_list = cat_id_radius_order_map_list
         self.radius_diff_dist = radius_diff_dist
         self.radius_start_val = radius_start_val
@@ -186,10 +191,32 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
         else:
             self.hypsph_radius_map_list = list(range(self.radius_start_val, self.radius_start_val + self.radius_diff_dist * len(self.cat_id_radius_order_map_list), self.radius_diff_dist))
 
-    def forward(self, outputs_dict, labels_dict):
+    def forward(self, outputs, masks, segments_info_data):
+        device = outputs.get_device()
+        radius_loss = 0
+
+        unique_cat_ids = torch.unique(masks[:, 1, :, :])  # skip segment_id=0
+
+        outputs_reordered_tmp = torch.permute(outputs, (1, 0, 2, 3))
+
+        # mse_loss_radius = torch.nn.MSELoss(size_average=False, reduce=False, reduction=None)
+        mse_loss_radius = torch.nn.MSELoss()
 
 
-        embeddings = outputs_dict["embeddings"]
+        for unique_cat_id in unique_cat_ids[1:]:  # skip 0
+            unique_cat_id = int(unique_cat_id.item())
+            cat_id_radius_indx = self.cat_id_radius_order_map_list.index(unique_cat_id)
+            radius = self.hypsph_radius_map_list[cat_id_radius_indx]
+            outputs_indx_select = masks[:, 1, :, :] == unique_cat_id
+            outputs_cat_id_embeddings = outputs_reordered_tmp[:, outputs_indx_select]
+            outputs_cat_id_embeddings_norm = torch.norm(outputs_cat_id_embeddings, dim=0)
+            radius_sqared_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), radius*radius, device=device)
+            loss_tmp = mse_loss_radius(outputs_cat_id_embeddings_norm, radius_sqared_loss_part)
+            radius_loss += loss_tmp
+
+
+
+        embeddings = outputs["embeddings"]
 
 
 
