@@ -1,5 +1,5 @@
 ## Deep Learning Panoptic Segmentation
-This project contains the tools to process a dataset and train/evaluate different deep learning models for Panoptic Segmentation.
+This project contains the tools to process a dataset and train/evaluate different deep learning models for Panoptic Segmentation with contrastive embedding learning.
 
 ### Installation
 Make sure to have miniconda3 installed on your device and having cloned the submodules completely
