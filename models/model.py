@@ -21,7 +21,7 @@ class Model(nn.Module):
         output_creator_config = dict(self.model_configs["output_creation"])
         output_creator_name = list(output_creator_config.keys())[0]
         output_creator_config = output_creator_config[output_creator_name]
-        self.output_creater = EmbeddingOutputAssociatorWrapper(output_creator_name, **output_creator_config)
+        self.output_creator = EmbeddingOutputAssociatorWrapper(output_creator_name, **output_creator_config)
 
         self.model = ModelAssociater.get_model_by_name(self.model_architecture_origin, self.model_architecture_name, self.model_architecture_config)
 
@@ -35,9 +35,9 @@ class Model(nn.Module):
 
         return output_dict
 
-    def create_output_from_embeddings(self, output_dict):
+    def create_output_from_embeddings(self, outputs, dataset_category_list, annotations_data):
 
-        return self.output_creater.create_output_from_embeddings(output_dict)
+        return self.output_creator.create_output_from_embeddings(outputs, dataset_category_list, annotations_data)
 
 
 

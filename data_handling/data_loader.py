@@ -468,6 +468,8 @@ def custom_collate_fn(batch_list):
             row_counter += 1
 
     annotations_data = [batch_list[i]["annotations_data"]["image_id"] for i in range(len(batch_list))]
+    # annotations_data = {"image_id": [batch_list[i]["annotations_data"]["image_id"] for i in range(len(batch_list))],
+    #              "categories_isthing": [batch_list[i]["categories_isthing"] for i in range(len(batch_list))]}
 
 
     return [torch.from_numpy(img_data), torch.from_numpy(mask_data), torch.from_numpy(segments_id_data), annotations_data]

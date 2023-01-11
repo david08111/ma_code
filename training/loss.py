@@ -227,35 +227,11 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
             radius_loss += loss_tmp
             radius_loss_counter += 1
 
-        # radius_loss.backward()
-            # # would use instances over multiple batch indices!
-            # segments_tensor = masks_reordered_tmp[:, outputs_indx_select]
-            # # segments_cat_id = torch.logical_and(segments_tensor[0, :], segments_tensor[2, :])
-            #
-            # if torch.any(segments_tensor[2, :]):
-            #     # differentiate between different batch elements
-            #
-            #     for b in range(outputs.shape[0]):
-            #         outputs_indx_select_instance_discr = masks[b, 1, :, :] == unique_cat_id
-            #       # segments_cat_id = masks_reordered_tmp[0, outputs_indx_select]
-            #         unique_segment_ids_by_cat_id = torch.unique(segments_tensor[0, :])
-            #
-            #     # if unique_segment_ids_by_cat_id.shape[0] > 1:
-            #         for unique_segment_id in unique_segment_ids_by_cat_id:
-            #             # instance self-clustering
-            #             segments_cat_id_segment_id = masks[masks[:, 0, :, :] == unique_segment_id]
-            #             target_same_inst = torch.ones((segments_cat_id_segment_id.size()[0]))
-            #             cosine_embedding_inst_discr_loss(segments_cat_id_segment_id, target_same_inst)
-
         ### instance discrimination part
 
         # reduce amount of masks with "isthing" part from masks - B x H x W x (segment_id, cat_id, isthing)
 
         batch_size = masks.shape[0]
-
-        # inst_discr_masks = masks_reordered_tmp[:, masks[:, 2, :, :] == True]
-        #
-        # inst_discr_masks = inst_discr_masks.view(3, batch_size, -1)
 
 
         for b in range(batch_size):
@@ -275,21 +251,10 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
                 for unique_segment_id in unique_segment_ids:
                     segment_id_embeddings = outputs[b, :, masks_reordered_tmp[0, b, :, :] == unique_segment_id]
                     segment_id_embeddings_dict[unique_segment_id.item()] = segment_id_embeddings
-                    # for i in range(segment_id_embeddings.shape[1]):
-                    #     segment_id_embeddings_tmp = torch.roll(segment_id_embeddings, i, dims=1)
-                    #     dot_product_embeddings = torch.matmul(torch.transpose(segment_id_embeddings, 0, 1), segment_id_embeddings_tmp)
-                    #     dot_product_embeddings = torch.div(dot_product_embeddings, torch.norm(segment_id_embeddings_tmp, 2, dim=0) * torch.norm(segment_id_embeddings, 2, dim=0) + 0.000001)
-                    #     dot_product_embeddings = torch.mul(dot_product_embeddings, -1)
-                    #     dot_product_embeddings = torch.add(dot_product_embeddings, 1)
-                    #     dot_product_embeddings_mean = torch.mean(dot_product_embeddings)
-                    #     similarity_loss += dot_product_embeddings_mean
-                    #     similarity_loss_counter += 1
 
-                    # segment_id_embeddings_tmp = torch.roll(segment_id_embeddings, i, dims=1)
                     segment_id_embeddings = torch.div(segment_id_embeddings, torch.norm(segment_id_embeddings, 2, dim=0) + 0.000001)
                     dot_product_embeddings = torch.matmul(torch.transpose(segment_id_embeddings, 0, 1), segment_id_embeddings)
 
-                    # dot_product_embeddings = torch.div(dot_product_embeddings, torch.norm(segment_id_embeddings_tmp, 2, dim=0) * torch.norm(segment_id_embeddings, 2, dim=0) + 0.000001)
                     dot_product_embeddings = torch.triu(dot_product_embeddings)
                     # test = dot_product_embeddings.nonzero(as_tuple=True)
                     dot_product_embeddings = dot_product_embeddings[dot_product_embeddings.nonzero(as_tuple=True)]
@@ -299,29 +264,10 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
                     similarity_loss += dot_product_embeddings_mean
                     similarity_loss_counter += 1
 
-                # unique_segment_ids_list = unique_segment_ids.tolist()
 
                 for i in range(unique_segment_ids.shape[0] - 1):
                     unique_segment_id = unique_segment_ids[i]
                     for neg_unique_segment_id in unique_segment_ids[i+1:]:
-                        # if unique_segment_id != neg_unique_segment_id:
-                            # if segment_id_embeddings_dict[unique_segment_id].shape[1] > segment_id_embeddings_dict[neg_unique_segment_id].shape[1]:
-                            #     more_embedding = segment_id_embeddings_dict[unique_segment_id]
-                            #     less_embedding = segment_id_embeddings_dict[neg_unique_segment_id]
-                            # else:
-                            #     more_embedding = segment_id_embeddings_dict[neg_unique_segment_id]
-                            #     less_embedding = segment_id_embeddings_dict[unique_segment_id]
-                            # for i in range(more_embedding.shape[1]):
-                            #     more_embedding_tmp = torch.roll(more_embedding, i, dims=1)[:less_embedding.shape[1]]
-                            #     dot_product_embeddings = torch.matmul(more_embedding_tmp, torch.transpose(less_embedding, 0, 1))
-                            #     dot_product_embeddings = torch.div(dot_product_embeddings, torch.norm(more_embedding_tmp, 2, dim=0) * torch.norm(less_embedding, 2, dim=0) + 0.000001)
-                            #     # dot_product_embeddings = torch.mul(dot_product_embeddings, -1)
-                            #     dot_product_embeddings = torch.add(dot_product_embeddings, self.cosine_emb_loss_margin)
-                            #     dot_product_embeddings = torch.clamp(dot_product_embeddings, min=0)
-                            #     dot_product_embeddings_mean = torch.mean(dot_product_embeddings)
-                            #     similarity_loss += dot_product_embeddings_mean
-                            #     similarity_loss_counter += 1
-                            # more_embedding_tmp = torch.roll(more_embedding, i, dims=1)[:less_embedding.shape[1]]
 
                         curr_embedding = segment_id_embeddings_dict[unique_segment_id.item()]
                         neg_embedding = segment_id_embeddings_dict[neg_unique_segment_id.item()]
@@ -330,21 +276,16 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
                         neg_embedding = torch.div(neg_embedding, torch.norm(neg_embedding, 2, dim=0) + 0.000001)
 
                         dot_product_embeddings = torch.matmul(torch.transpose(curr_embedding, 0, 1), neg_embedding)
-                        # dot_product_embeddings = torch.div(dot_product_embeddings, torch.norm(more_embedding_tmp, 2, dim=0) * torch.norm(less_embedding, 2, dim=0) + 0.000001)
-                        # dot_product_embeddings = torch.mul(dot_product_embeddings, -1)
 
                         dot_product_embeddings = torch.triu(dot_product_embeddings)
                         # test = dot_product_embeddings.nonzero(as_tuple=True)
                         dot_product_embeddings = dot_product_embeddings[dot_product_embeddings.nonzero(as_tuple=True)]
-                        # dot_product_embeddings = torch.mul(dot_product_embeddings, -1)
                         dot_product_embeddings = torch.add(dot_product_embeddings, -self.cosine_emb_loss_margin)
                         dot_product_embeddings = torch.clamp(dot_product_embeddings, min=0)
                         dot_product_embeddings_mean = torch.mean(dot_product_embeddings)
 
                         similarity_loss += dot_product_embeddings_mean
                         similarity_loss_counter += 1
-
-        # similarity_loss.backward()
 
         radius_loss /= radius_loss_counter
 

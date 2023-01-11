@@ -239,6 +239,10 @@ class Base_Dataset_COCO(ABC):
                           "annotations_data": annotation,
                           "categories_isthing": self.categories_isthing}
 
+        # data_item_dict = {"img": img,
+        #                   "annotation_mask": annotation_mask,
+        #                   "annotations_data": annotation}
+
         return data_item_dict
         # return img, annotation
 
@@ -289,6 +293,9 @@ class Cityscapes_Dataset(Base_Dataset_COCO):
                     "annotation_mask": annotation_mask,
                     "annotations_data": annotation,
                     "categories_isthing": self.categories_isthing}
+        # data_item_dict = {"img": img,
+        #                   "annotation_mask": annotation_mask,
+        #                   "annotations_data": annotation}
 
         return data_item_dict
 

@@ -136,6 +136,17 @@ class Net_trainer():
     def load_model(self, net, path):
         net.model.load_state_dict(torch.load(path))
 
+    def set_categories(self, data):
+        self.dataset_category_dict = {}
+        for key in data:
+            self.dataset_category_dict[key] = []
+            for dataset_cls in data[key].dataset.dataset_cls_list:
+                self.dataset_category_dict[key].append(dataset_cls.categories_id)
+                # break # see comment below
+
+        # current unification assumption (all datasets same category dict mapping)
+
+
     def train_step(self, epoch, net, device, data):
 
         log_img_counter = 0
@@ -199,7 +210,7 @@ class Net_trainer():
 
             self.optimizer.optimizer.step()
 
-            final_outputs = net.create_output_from_embeddings(outputs)
+            final_outputs = net.create_output_from_embeddings(outputs, self.dataset_category_dict["train_loader"], annotations_data)
 
             loss_sum += loss.item()
 
@@ -428,6 +439,7 @@ class Net_trainer():
 
     def train(self, net, device, data):
 
+        self.set_categories(data)
 
         for epoch in range(self.start_epoch, self.max_epoch + 1):
             tqdm.write("Epoch " + str(epoch) + ":")
