@@ -177,11 +177,15 @@ class Discriminative_contrast_loss(nn.Module):
         raise ValueError("Discriminative_contrast_loss not implemented yet!")
 
 class Panoptic_spherical_contrastive_loss(nn.Module):
-    def __init__(self, cat_id_radius_order_map_list, radius_diff_dist=1, radius_start_val=0, radius_loss_weight=0.5, similarity_loss_weight=0.5, hypsph_radius_map_list=None):
+    def __init__(self, cat_id_radius_order_map_list, radius_diff_dist=1, radius_start_val=0, cosine_emb_loss_margin=0, radius_loss_weight=0.5, similarity_loss_weight=0.5, hypsph_radius_map_list=None):
         super().__init__()
         self.cat_id_radius_order_map_list = cat_id_radius_order_map_list
         self.radius_diff_dist = radius_diff_dist
         self.radius_start_val = radius_start_val
+        self.cosine_emb_loss_margin = cosine_emb_loss_margin
+
+        self.mse_loss_radius = torch.nn.MSELoss()
+        self.cosine_embedding_inst_discr_loss = torch.nn.CosineEmbeddingLoss(margin=cosine_emb_loss_margin, size_average=False, reduce=False, reduction=False)
 
         self.radius_loss_weight = radius_loss_weight
         self.similarity_loss_weight = similarity_loss_weight
@@ -193,15 +197,22 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
 
     def forward(self, outputs, masks, segments_info_data):
         device = outputs.get_device()
+
         radius_loss = 0
+
+        similarity_loss = 0
 
         unique_cat_ids = torch.unique(masks[:, 1, :, :])  # skip segment_id=0
 
         outputs_reordered_tmp = torch.permute(outputs, (1, 0, 2, 3))
+        masks_reordered_tmp = torch.permute(masks, (1, 0, 2, 3))
 
         # mse_loss_radius = torch.nn.MSELoss(size_average=False, reduce=False, reduction=None)
-        mse_loss_radius = torch.nn.MSELoss()
+        mse_loss_radius = self.mse_loss_radius
+        # cosine_embedding_inst_discr_loss = self.cosine_embedding_inst_discr_loss
 
+        radius_loss_counter = 0
+        similarity_loss_counter = 0
 
         for unique_cat_id in unique_cat_ids[1:]:  # skip 0
             unique_cat_id = int(unique_cat_id.item())
@@ -209,16 +220,142 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
             radius = self.hypsph_radius_map_list[cat_id_radius_indx]
             outputs_indx_select = masks[:, 1, :, :] == unique_cat_id
             outputs_cat_id_embeddings = outputs_reordered_tmp[:, outputs_indx_select]
-            outputs_cat_id_embeddings_norm = torch.norm(outputs_cat_id_embeddings, dim=0)
-            radius_sqared_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), radius*radius, device=device)
+            outputs_cat_id_embeddings_norm = torch.norm(outputs_cat_id_embeddings, 2, dim=0)
+            # radius_sqared_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), radius*radius, device=device)
+            radius_sqared_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), radius, device=device, dtype=torch.float32)
             loss_tmp = mse_loss_radius(outputs_cat_id_embeddings_norm, radius_sqared_loss_part)
             radius_loss += loss_tmp
+            radius_loss_counter += 1
+
+        # radius_loss.backward()
+            # # would use instances over multiple batch indices!
+            # segments_tensor = masks_reordered_tmp[:, outputs_indx_select]
+            # # segments_cat_id = torch.logical_and(segments_tensor[0, :], segments_tensor[2, :])
+            #
+            # if torch.any(segments_tensor[2, :]):
+            #     # differentiate between different batch elements
+            #
+            #     for b in range(outputs.shape[0]):
+            #         outputs_indx_select_instance_discr = masks[b, 1, :, :] == unique_cat_id
+            #       # segments_cat_id = masks_reordered_tmp[0, outputs_indx_select]
+            #         unique_segment_ids_by_cat_id = torch.unique(segments_tensor[0, :])
+            #
+            #     # if unique_segment_ids_by_cat_id.shape[0] > 1:
+            #         for unique_segment_id in unique_segment_ids_by_cat_id:
+            #             # instance self-clustering
+            #             segments_cat_id_segment_id = masks[masks[:, 0, :, :] == unique_segment_id]
+            #             target_same_inst = torch.ones((segments_cat_id_segment_id.size()[0]))
+            #             cosine_embedding_inst_discr_loss(segments_cat_id_segment_id, target_same_inst)
+
+        ### instance discrimination part
+
+        # reduce amount of masks with "isthing" part from masks - B x H x W x (segment_id, cat_id, isthing)
+
+        batch_size = masks.shape[0]
+
+        # inst_discr_masks = masks_reordered_tmp[:, masks[:, 2, :, :] == True]
+        #
+        # inst_discr_masks = inst_discr_masks.view(3, batch_size, -1)
+
+
+        for b in range(batch_size):
+
+            inst_discr_masks = masks_reordered_tmp[:2, b, masks[b, 2, :, :] == True]
+
+            unique_cat_ids = torch.unique(inst_discr_masks[1, :])
+
+            for unique_cat_id in unique_cat_ids:
+                segments_id_data = masks_reordered_tmp[:, b, masks_reordered_tmp[1, b, :, :] == unique_cat_id]
+
+                unique_segment_ids = torch.unique(segments_id_data[0, :])
+
+                segment_id_embeddings_dict = {}
+                # gather embeddings and calculate cosineembeddingloss with itself
+
+                for unique_segment_id in unique_segment_ids:
+                    segment_id_embeddings = outputs[b, :, masks_reordered_tmp[0, b, :, :] == unique_segment_id]
+                    segment_id_embeddings_dict[unique_segment_id.item()] = segment_id_embeddings
+                    # for i in range(segment_id_embeddings.shape[1]):
+                    #     segment_id_embeddings_tmp = torch.roll(segment_id_embeddings, i, dims=1)
+                    #     dot_product_embeddings = torch.matmul(torch.transpose(segment_id_embeddings, 0, 1), segment_id_embeddings_tmp)
+                    #     dot_product_embeddings = torch.div(dot_product_embeddings, torch.norm(segment_id_embeddings_tmp, 2, dim=0) * torch.norm(segment_id_embeddings, 2, dim=0) + 0.000001)
+                    #     dot_product_embeddings = torch.mul(dot_product_embeddings, -1)
+                    #     dot_product_embeddings = torch.add(dot_product_embeddings, 1)
+                    #     dot_product_embeddings_mean = torch.mean(dot_product_embeddings)
+                    #     similarity_loss += dot_product_embeddings_mean
+                    #     similarity_loss_counter += 1
+
+                    # segment_id_embeddings_tmp = torch.roll(segment_id_embeddings, i, dims=1)
+                    segment_id_embeddings = torch.div(segment_id_embeddings, torch.norm(segment_id_embeddings, 2, dim=0) + 0.000001)
+                    dot_product_embeddings = torch.matmul(torch.transpose(segment_id_embeddings, 0, 1), segment_id_embeddings)
+
+                    # dot_product_embeddings = torch.div(dot_product_embeddings, torch.norm(segment_id_embeddings_tmp, 2, dim=0) * torch.norm(segment_id_embeddings, 2, dim=0) + 0.000001)
+                    dot_product_embeddings = torch.triu(dot_product_embeddings)
+                    # test = dot_product_embeddings.nonzero(as_tuple=True)
+                    dot_product_embeddings = dot_product_embeddings[dot_product_embeddings.nonzero(as_tuple=True)]
+                    dot_product_embeddings = torch.mul(dot_product_embeddings, -1)
+                    dot_product_embeddings = torch.add(dot_product_embeddings, 1)
+                    dot_product_embeddings_mean = torch.mean(dot_product_embeddings)
+                    similarity_loss += dot_product_embeddings_mean
+                    similarity_loss_counter += 1
+
+                # unique_segment_ids_list = unique_segment_ids.tolist()
+
+                for i in range(unique_segment_ids.shape[0] - 1):
+                    unique_segment_id = unique_segment_ids[i]
+                    for neg_unique_segment_id in unique_segment_ids[i+1:]:
+                        # if unique_segment_id != neg_unique_segment_id:
+                            # if segment_id_embeddings_dict[unique_segment_id].shape[1] > segment_id_embeddings_dict[neg_unique_segment_id].shape[1]:
+                            #     more_embedding = segment_id_embeddings_dict[unique_segment_id]
+                            #     less_embedding = segment_id_embeddings_dict[neg_unique_segment_id]
+                            # else:
+                            #     more_embedding = segment_id_embeddings_dict[neg_unique_segment_id]
+                            #     less_embedding = segment_id_embeddings_dict[unique_segment_id]
+                            # for i in range(more_embedding.shape[1]):
+                            #     more_embedding_tmp = torch.roll(more_embedding, i, dims=1)[:less_embedding.shape[1]]
+                            #     dot_product_embeddings = torch.matmul(more_embedding_tmp, torch.transpose(less_embedding, 0, 1))
+                            #     dot_product_embeddings = torch.div(dot_product_embeddings, torch.norm(more_embedding_tmp, 2, dim=0) * torch.norm(less_embedding, 2, dim=0) + 0.000001)
+                            #     # dot_product_embeddings = torch.mul(dot_product_embeddings, -1)
+                            #     dot_product_embeddings = torch.add(dot_product_embeddings, self.cosine_emb_loss_margin)
+                            #     dot_product_embeddings = torch.clamp(dot_product_embeddings, min=0)
+                            #     dot_product_embeddings_mean = torch.mean(dot_product_embeddings)
+                            #     similarity_loss += dot_product_embeddings_mean
+                            #     similarity_loss_counter += 1
+                            # more_embedding_tmp = torch.roll(more_embedding, i, dims=1)[:less_embedding.shape[1]]
+
+                        curr_embedding = segment_id_embeddings_dict[unique_segment_id.item()]
+                        neg_embedding = segment_id_embeddings_dict[neg_unique_segment_id.item()]
+
+                        curr_embedding = torch.div(curr_embedding, torch.norm(curr_embedding, 2, dim=0) + 0.000001)
+                        neg_embedding = torch.div(neg_embedding, torch.norm(neg_embedding, 2, dim=0) + 0.000001)
+
+                        dot_product_embeddings = torch.matmul(torch.transpose(curr_embedding, 0, 1), neg_embedding)
+                        # dot_product_embeddings = torch.div(dot_product_embeddings, torch.norm(more_embedding_tmp, 2, dim=0) * torch.norm(less_embedding, 2, dim=0) + 0.000001)
+                        # dot_product_embeddings = torch.mul(dot_product_embeddings, -1)
+
+                        dot_product_embeddings = torch.triu(dot_product_embeddings)
+                        # test = dot_product_embeddings.nonzero(as_tuple=True)
+                        dot_product_embeddings = dot_product_embeddings[dot_product_embeddings.nonzero(as_tuple=True)]
+                        # dot_product_embeddings = torch.mul(dot_product_embeddings, -1)
+                        dot_product_embeddings = torch.add(dot_product_embeddings, -self.cosine_emb_loss_margin)
+                        dot_product_embeddings = torch.clamp(dot_product_embeddings, min=0)
+                        dot_product_embeddings_mean = torch.mean(dot_product_embeddings)
+
+                        similarity_loss += dot_product_embeddings_mean
+                        similarity_loss_counter += 1
+
+        # similarity_loss.backward()
+
+        radius_loss /= radius_loss_counter
+
+        similarity_loss /= similarity_loss_counter
 
 
 
-        embeddings = outputs["embeddings"]
 
+        total_loss = self.radius_loss_weight * radius_loss + self.similarity_loss_weight * similarity_loss
 
+        return total_loss
 
 class Weighted_sum(nn.Module):
     def __init__(self, loss_list, weights_list):

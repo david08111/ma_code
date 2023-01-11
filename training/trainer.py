@@ -195,7 +195,6 @@ class Net_trainer():
             # print(outputs)
             # print("loss:")
             # print(loss)
-
             loss.backward()
 
             self.optimizer.optimizer.step()
