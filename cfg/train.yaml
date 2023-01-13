@@ -17,7 +17,7 @@ model:
       radius_start_val: 0           # start radius value
       radius_association_margin: 0.5  # max deviation from radius to still associate to closest radius
       instance_clustering_method:
-        dbscan: {} # no args specified
+        mean_shift: {} # no args specified
 
 
 
@@ -44,6 +44,7 @@ training:
   save_path: "/work/scratch/dziuba/ma_code_runs/trainings/test_debug"
 #  gpu_ids: [0]
   save_freq: 10
+  metrics_calc_freq: 10
   num_epochs: 100
   use_cpp: False
   best_eval_mode: "min"
@@ -103,7 +104,7 @@ data:
   augmentations_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/augmentations.yaml"
 
 logging:
-  enable: True
-  port: 9999
   name: "LOG"
   save_path: "/work/scratch/dziuba/ma_code_runs/logs/test_debug"
+  img_log_freq: 10
+  num_log_img: 5

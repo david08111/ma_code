@@ -52,7 +52,7 @@ def train_net(config_path, verbose):
     }
 
 
-    net_trainer = Net_trainer(model, config_dict["training"]["save_path"], config_dict["training"]["save_freq"], config_dict["training"]["num_epochs"], config_dict["optimizer"], config_dict["scheduler"], config_dict["training"]["best_eval_mode"], device, criterions, config_dict=config_dict)
+    net_trainer = Net_trainer(model, config_dict["training"]["save_path"], config_dict["training"]["save_freq"], config_dict["training"]["metrics_calc_freq"], config_dict["training"]["num_epochs"], config_dict["optimizer"], config_dict["scheduler"], config_dict["training"]["best_eval_mode"], device, criterions, config_dict=config_dict)
 
 
     net_trainer.train(model, device, data)

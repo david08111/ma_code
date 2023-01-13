@@ -22,9 +22,6 @@ transformations: # potentially more settings available but standard ones preffer
     p: 0.05
   horizontalflip:
     p: 0.5
-  maskdropout:
-    max_objects: 1
-    p: 0.05
   pixeldropout:
     dropout_prob: 0.01
     mask_drop_value: 0
