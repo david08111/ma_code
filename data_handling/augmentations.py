@@ -3,6 +3,7 @@ import os
 import albumentations as albtions
 from matplotlib import pyplot as plt
 import numpy as np
+import cv2
 
 
 class Augmentation_Wrapper():
@@ -18,7 +19,7 @@ class Augmentation_Wrapper():
         transformation_list = []
         for key in config["transformations"].keys():
             if key == "affine":
-                transform = albtions.augmentations.Affine(**config["transformations"][key])
+                transform = albtions.augmentations.Affine(**config["transformations"][key], mask_interpolation=cv2.INTER_NEAREST)
             elif key == "randomcrop":
                 transform = albtions.augmentations.RandomCrop(**config["transformations"][key])
             elif key == "coarse_dropout":
@@ -27,8 +28,8 @@ class Augmentation_Wrapper():
                 transform = albtions.augmentations.ElasticTransform(**config["transformations"][key])
             elif key == "horizontalflip":
                 transform = albtions.augmentations.HorizontalFlip(**config["transformations"][key])
-            elif key == "maskdropout":
-                transform = albtions.augmentations.MaskDropout(**config["transformations"][key])
+            # elif key == "maskdropout":  # resulted in problems
+            #     transform = albtions.augmentations.MaskDropout(**config["transformations"][key])
             elif key == "pixeldropout":
                 transform = albtions.augmentations.PixelDropout(**config["transformations"][key])
             elif key == "advancedblur":
@@ -36,7 +37,7 @@ class Augmentation_Wrapper():
             elif key == "colorjitter":
                 transform = albtions.augmentations.ColorJitter(**config["transformations"][key])
             elif key == "downscale":
-                transform = albtions.augmentations.Downscale(**config["transformations"][key])
+                transform = albtions.augmentations.Downscale(**config["transformations"][key], interpolation=cv2.INTER_NEAREST)
             elif key == "emboss":
                 transform = albtions.augmentations.Emboss(**config["transformations"][key])
             elif key == "gaussnoise":

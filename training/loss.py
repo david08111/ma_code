@@ -185,7 +185,7 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
         self.cosine_emb_loss_margin = cosine_emb_loss_margin
 
         self.mse_loss_radius = torch.nn.MSELoss()
-        self.cosine_embedding_inst_discr_loss = torch.nn.CosineEmbeddingLoss(margin=cosine_emb_loss_margin, size_average=False, reduce=False, reduction=False)
+        # self.cosine_embedding_inst_discr_loss = torch.nn.CosineEmbeddingLoss(margin=cosine_emb_loss_margin, size_average=False, reduce=False, reduction=False)
 
         self.radius_loss_weight = radius_loss_weight
         self.similarity_loss_weight = similarity_loss_weight

@@ -9,6 +9,7 @@ from tqdm import tqdm
 from matplotlib import pyplot as plt
 import numpy as np
 import sys
+import logging
 import cv2
 
 ## implement SWA
@@ -33,6 +34,8 @@ class Net_trainer():
             self.best_loss_score = 0
 
         # torch.backends.cudnn.enabled = False
+
+        self.hyperparams_dict = self.create_hyperparams_dict(kwargs["config_dict"])
 
         self.train_setup(net, device, kwargs["config_dict"])
 
@@ -75,7 +78,7 @@ class Net_trainer():
             #         net.model.load_state_dict(state)
 
         if "logging" in config_dict:
-            self.train_logger = TrainLogger(**config_dict["logging"])
+            self.train_logger = TrainLogger(**config_dict["logging"], img_log_freq=self.metrics_calc_freq)
 
         # if first_run:
         #     net.apply(weights_init)
@@ -84,6 +87,15 @@ class Net_trainer():
     # def weights_init(self, m):
     #
     #
+
+    def create_hyperparams_dict(self, config_dict):
+        return {
+            "model_architecture_name": config_dict["model"]["model_architecture"]["model_architecture_name"],
+            "pretrained": config_dict["model"]["model_architecture"]["pretrained"],
+            "embedding_dims": config_dict["model"]["model_architecture"]["embedding_dims"],
+            "AMP": config_dict["model"]["AMP"], # does not do anything
+            "model_architecture_name": config_dict["model"]["model_architecture"]["model_architecture_name"],
+        }
 
     def save_checkpoint(self, net, optimizer, scheduler, epoch):
         check_pt = {
@@ -176,7 +188,6 @@ class Net_trainer():
 
             self.optimizer.optimizer.step()
 
-
             final_outputs, final_output_segmentation_data = net.create_output_from_embeddings(outputs, self.dataset_category_dict["train_loader"], annotations_data)
 
             test_output_masks = final_outputs.cpu().detach().numpy()
@@ -185,6 +196,29 @@ class Net_trainer():
 
                 plt.imshow(test_output_masks[i, ...])
                 plt.show()
+
+            meta = []
+            import keyword
+            while len(meta) < 100:
+                meta = meta + keyword.kwlist  # get some strings
+            meta = meta[:100]
+
+            for i, v in enumerate(meta):
+                meta[i] = v + str(i)
+
+            self.train_logger.add_embedding("TEST-Embedding", embeddings=torch.randn(100, 5), metadata=meta, epoch=epoch)
+
+            self.train_logger.add_text("TEST TEXT!", logging.INFO, epoch)
+            self.train_logger.add_scalar("TEST SCALAR!", 69, epoch)
+            self.train_logger.add_image("TEST IMAGE", test_output_masks, epoch)
+            test_embedding = outputs[0, ...].cpu().detach().numpy()
+            test_embedding = test_embedding[:, :int(test_embedding.shape[1]/2), :int(test_embedding.shape[2]/2)]
+            test_embedding = test_embedding.reshape(-1, test_embedding.shape[0])
+            test_embedding2 = np.random.rand(50, 3)
+            # self.train_logger.add_embedding("Output-Embeddings", embeddings=test_embedding2, metadata=None, epoch=epoch)
+            self.train_logger.add_graph(net.model, inputs)
+            self.train_logger.add_embedding("Output-Embeddings", embeddings=test_embedding, metadata=np.zeros(test_embedding.shape), epoch=epoch)
+            self.train_logger.flush()
 
 
             loss_sum += loss.item()

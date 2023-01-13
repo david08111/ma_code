@@ -17,7 +17,7 @@ model:
       radius_start_val: 0           # start radius value
       radius_association_margin: 0.5  # max deviation from radius to still associate to closest radius
       instance_clustering_method:
-        mean_shift: {} # no args specified
+        dbscan: {} # no args specified
 
 
 
@@ -106,5 +106,5 @@ data:
 logging:
   name: "LOG"
   save_path: "/work/scratch/dziuba/ma_code_runs/logs/test_debug"
-  img_log_freq: 10
-  num_log_img: 5
+#  img_log_freq: 10 # set by metrics_calc_freq
+#  num_log_img: 5
