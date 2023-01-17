@@ -56,6 +56,7 @@ class MultiSphereAssociator():
         width = outputs.shape[3]
 
         final_output_mask = torch.zeros((batch_size, 3, height, width), dtype=torch.uint8) # RGB image -> make configurable
+        # final_single_output_mask = torch.zeros((batch_size,height, width), dtype=torch.float32)
 
         # calc radius of embeddings
 
@@ -90,6 +91,8 @@ class MultiSphereAssociator():
                 # mask = original_format == el
                 if not dataset_category[cat_id]["isthing"]:
                     segment_id, color = id_gen.get_id_and_color(cat_id)
+
+                    # final_single_output_mask[b, outputs_rad_mask] = segment_id
 
                     mask = final_output_mask[b, :, outputs_rad_mask]
                     # area = torch.count_nonzero(outputs_rad_mask)
@@ -144,6 +147,8 @@ class MultiSphereAssociator():
                     for j in cluster_ids:
                         segment_id, color = id_gen.get_id_and_color(cat_id)
 
+                        # final_single_output_mask[b, output_rad_mask_inst] = segment_id
+
                         instance_indices = cat_id_indices[clustered_embedding_indices == j]
 
                         output_rad_mask_inst = torch.zeros(outputs_rad_mask.shape, dtype=torch.bool)
@@ -183,11 +188,12 @@ class MultiSphereAssociator():
                         # "bbox": bbox,
                         # "iscrowd": is_crowd})
 
-            annotations.append({'image_id': annotations_data[b],
+            annotations.append({'image_id': annotations_data[b]["image_id"],
                                 # 'file_name': file_name,
                                 "segments_info": segm_info})
 
         return final_output_mask, annotations
+        # return final_output_mask, final_single_output_mask, annotations
 
 
 class ClusteringWrapper():

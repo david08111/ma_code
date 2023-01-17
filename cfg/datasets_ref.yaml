@@ -4,22 +4,27 @@ train_set:
     unify: false  # for unification of different dataset types
   sets:
     train_set1:
-      dataset_name: cityscapes_gtFine_train
+      dataset_name: cityscapes_gtFine_val
       dataset_type: cityscapes
-      img_data_path: /work/scratch/dziuba/datasets/Cityscapes/leftImg8bit/train
-      segment_info_file_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/gtFine_train.json
-      segment_masks_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/train
+      img_data_path: /work/scratch/dziuba/datasets/Cityscapes/leftImg8bit/val
+      segment_info_file_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/gtFine_val.json
+      segment_masks_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/val
+#      dataset_name: cityscapes_gtFine_train
+#      dataset_type: cityscapes
+#      img_data_path: /work/scratch/dziuba/datasets/Cityscapes/leftImg8bit/train
+#      segment_info_file_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/gtFine_train.json
+#      segment_masks_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/train
     train_set2:
-      dataset_name: cityscapes_gtCoarse_train_extra
+      dataset_name: cityscapes_gtFine_val
       dataset_type: cityscapes
-      img_data_path: /work/scratch/dziuba/datasets/Cityscapes/leftImg8bit/train_extra
-      segment_info_file_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtCoarse/gtCoarse_train_extra.json
-      segment_masks_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtCoarse/train_extra
-  #  train_set2:
-  #    dataset_name: cityscapes_gtCoarse_train_extra
-  #    img_data_path: /work/scratch/dziuba/datasets/Cityscapes/leftImg8bit/train_extra
-  #    segment_info_file_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtCoarse/gtCoarse_train_extra.json
-  #    segment_masks_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtCoarse/train_extra
+      img_data_path: /work/scratch/dziuba/datasets/Cityscapes/leftImg8bit/val
+      segment_info_file_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/gtFine_val.json
+      segment_masks_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/val
+#      dataset_name: cityscapes_gtCoarse_train_extra
+#      dataset_type: cityscapes
+#      img_data_path: /work/scratch/dziuba/datasets/Cityscapes/leftImg8bit/train_extra
+#      segment_info_file_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtCoarse/gtCoarse_train_extra.json
+#      segment_masks_path: /work/scratch/dziuba/datasets/Cityscapes_COCO/gtCoarse/train_extra
 
 val_set:
   settings:

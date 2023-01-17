@@ -195,7 +195,7 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
         else:
             self.hypsph_radius_map_list = list(range(self.radius_start_val, self.radius_start_val + self.radius_diff_dist * len(self.cat_id_radius_order_map_list), self.radius_diff_dist))
 
-    def forward(self, outputs, masks, segments_info_data):
+    def forward(self, outputs, masks, annotations_data):
         device = outputs.get_device()
 
         radius_loss = 0

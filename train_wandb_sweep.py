@@ -1,6 +1,7 @@
 import torch
 import argparse
 import os
+import sys
 from utils import Config, create_config_dict
 from data_handling import DataHandler, custom_collate_fn, custom_collate_fn2
 from training import Net_trainer
@@ -10,13 +11,52 @@ from models import Model
 from torch.utils.data import DataLoader
 
 
+def add_nested_dict_from_list(config_dict, nested_dict_level_list, val):
+    if len(nested_dict_level_list) > 1:
+        key = nested_dict_level_list.pop(0)
+        if key in config_dict.keys():
+            add_nested_dict_from_list(config_dict[key], nested_dict_level_list, val)
+        else:
+            config_dict[key] = {}
+            add_nested_dict_from_list(config_dict[key], nested_dict_level_list, val)
+    elif len(nested_dict_level_list) == 1:
+        config_dict[nested_dict_level_list[0]] = val
 
-def train_net(config_path, verbose):
+def create_nested_dict_from_list(nested_dict_level_list, val):
+    if len(nested_dict_level_list) > 1:
+        key = nested_dict_level_list.pop(0)
+        return {key: create_nested_dict_from_list(nested_dict_level_list)}
+    elif len(nested_dict_level_list) == 1:
+        return {nested_dict_level_list[0]: val}
+
+def convert_arg_list2config_dict(arg_list):
+
+    config_dict = {}
+
+    for elem in arg_list:
+        # split into key and value with "="
+        key_val_split = elem.split("=")
+
+        val = key_val_split[1]
+        key = key_val_split[0]
+
+        # remove "--" from front
+
+        key = key[2:]
+
+        # split by nested dictionary elems
+
+        nested_dict_level_list = key.split(".")
+
+        # nested_dict_elem = create_nested_dict_from_list(nested_dict_level_list, val)
+        add_nested_dict_from_list(config_dict, nested_dict_level_list, val)
+
+def train_net(config_dict):
     torch.manual_seed(10)
     # config = Config()
 
     # config_dict = config(os.path.abspath(config_path))
-    config_dict = create_config_dict(os.path.abspath(config_path))
+    # config_dict = create_config_dict(os.path.abspath(config_path))
 
     # dataset_config_dict = create_dataset_config(os.path.abspath(config_dict["data"]["datasets_file_path"]), config_dict)
     # dataset_config_dict = config(os.path.abspath(config_dict["data"]["datasets_file_path"]))
@@ -58,9 +98,7 @@ def train_net(config_path, verbose):
     net_trainer.train(model, device, data)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-c", "--config", type=str,
-                        help="Path to configuration file")
-    parser.add_argument("-v", "--verbose", action="store_true")
-    args = parser.parse_args()
-    train_net(args.config, args.verbose)
+
+    config_dict = convert_arg_list2config_dict(sys.argv[1:])
+
+    train_net(config_dict)

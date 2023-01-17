@@ -78,7 +78,7 @@ class Net_trainer():
             #         net.model.load_state_dict(state)
 
         if "logging" in config_dict:
-            self.train_logger = TrainLogger(**config_dict["logging"], img_log_freq=self.metrics_calc_freq)
+            self.train_logger = TrainLogger(**config_dict["logging"], img_log_freq=self.metrics_calc_freq, hyperparams_dict=self.hyperparams_dict)
 
         # if first_run:
         #     net.apply(weights_init)
@@ -89,13 +89,17 @@ class Net_trainer():
     #
 
     def create_hyperparams_dict(self, config_dict):
-        return {
-            "model_architecture_name": config_dict["model"]["model_architecture"]["model_architecture_name"],
-            "pretrained": config_dict["model"]["model_architecture"]["pretrained"],
-            "embedding_dims": config_dict["model"]["model_architecture"]["embedding_dims"],
-            "AMP": config_dict["model"]["AMP"], # does not do anything
-            "model_architecture_name": config_dict["model"]["model_architecture"]["model_architecture_name"],
-        }
+        # import wandb
+        # wandb.config(config_dict)
+
+        # return {
+        #     "model_architecture_name": config_dict["model"]["model_architecture"]["model_architecture_name"],
+        #     "pretrained": config_dict["model"]["model_architecture"]["pretrained"],
+        #     "embedding_dims": config_dict["model"]["model_architecture"]["embedding_dims"],
+        #     "AMP": config_dict["model"]["AMP"], # does not do anything
+        #     "model_architecture_name": config_dict["model"]["model_architecture"]["model_architecture_name"],
+        # }
+        return config_dict
 
     def save_checkpoint(self, net, optimizer, scheduler, epoch):
         check_pt = {
@@ -150,14 +154,15 @@ class Net_trainer():
 
             self.optimizer.optimizer.zero_grad()
 
-            [inputs, masks, segments_id_data, annotations_data] = datam
+            # [inputs, masks, segments_id_data, annotations_data] = datam
+            [inputs, masks, annotations_data] = datam
 
             # inputs = torch.tensor(inputs, device=device, dtype=torch.float32)
             # labels = torch.tensor(labels, device=device, dtype=torch.float32)[:, :, :, 0:1]
 
             inputs = inputs.to(device, non_blocking=True)
             masks = masks.to(device, non_blocking=True)
-            segments_id_data = segments_id_data.to(device, non_blocking=True)
+            # segments_id_data = segments_id_data.to(device, non_blocking=True)
             # labels = labels.narrow(3, 0, 1).contiguous()
             # inputs = inputs.permute((0, 3, 2, 1))
 
@@ -175,7 +180,7 @@ class Net_trainer():
             # plt.imshow(lab)
             # plt.show()
 
-            loss = self.criterions["criterion_train"].loss(outputs, masks, segments_id_data)
+            loss = self.criterions["criterion_train"].loss(outputs, masks, annotations_data)
 
             # print("labels:")
             # print(labels)
@@ -189,6 +194,10 @@ class Net_trainer():
             self.optimizer.optimizer.step()
 
             final_outputs, final_output_segmentation_data = net.create_output_from_embeddings(outputs, self.dataset_category_dict["train_loader"], annotations_data)
+
+            import wandb
+            # wandb.config = self.hyperparams_dict
+            wandb.config.update(self.hyperparams_dict)
 
             test_output_masks = final_outputs.cpu().detach().numpy()
             test_output_masks = np.moveaxis(test_output_masks, 1, -1)
@@ -206,18 +215,25 @@ class Net_trainer():
             for i, v in enumerate(meta):
                 meta[i] = v + str(i)
 
-            self.train_logger.add_embedding("TEST-Embedding", embeddings=torch.randn(100, 5), metadata=meta, epoch=epoch)
+            self.train_logger.add_embedding("TEST-Embedding", embeddings=np.random.randn(100, 5), data_pts_names=None, epoch=epoch)
+
+            # self.train_logger.wandb_add_graph(net.model, self.criterions["criterion_train"].loss)
+            self.train_logger.add_image_and_mask("Panoptic Masks", inputs, masks, annotations_data, final_outputs, final_output_segmentation_data, epoch, self.dataset_category_dict["train_loader"])
+            # self.train_logger.add_image_and_mask("Output-Mask", inputs, final_outputs, final_output_segmentation_data, epoch, self.dataset_category_dict["train_loader"])
 
             self.train_logger.add_text("TEST TEXT!", logging.INFO, epoch)
             self.train_logger.add_scalar("TEST SCALAR!", 69, epoch)
-            self.train_logger.add_image("TEST IMAGE", test_output_masks, epoch)
+            self.train_logger.add_image("TEST IMAGE", test_output_masks, final_output_segmentation_data, epoch)
             test_embedding = outputs[0, ...].cpu().detach().numpy()
-            test_embedding = test_embedding[:, :int(test_embedding.shape[1]/2), :int(test_embedding.shape[2]/2)]
+            test_embedding = test_embedding[:, :int(test_embedding.shape[1]/8), :int(test_embedding.shape[2]/8)]
             test_embedding = test_embedding.reshape(-1, test_embedding.shape[0])
+            test_data_pts_ids = masks[0, 0,:, :].cpu().detach().numpy()
+            test_data_pts_ids = test_data_pts_ids[:int(test_data_pts_ids.shape[0]/8), :int(test_data_pts_ids.shape[1]/8)]
+            test_data_pts_ids = test_data_pts_ids.flatten()
             test_embedding2 = np.random.rand(50, 3)
             # self.train_logger.add_embedding("Output-Embeddings", embeddings=test_embedding2, metadata=None, epoch=epoch)
             self.train_logger.add_graph(net.model, inputs)
-            self.train_logger.add_embedding("Output-Embeddings", embeddings=test_embedding, metadata=np.zeros(test_embedding.shape), epoch=epoch)
+            self.train_logger.add_embedding("Output-Embeddings", embeddings=test_embedding, data_pts_names=test_data_pts_ids, epoch=epoch)
             self.train_logger.flush()
 
 

@@ -7,7 +7,6 @@ model:
     model_architecture_name: unet_resnet50
     pretrained: True
     embedding_dims: 20
-
   AMP: false
   channels: 3
   output_creation:

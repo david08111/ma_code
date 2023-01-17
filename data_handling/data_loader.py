@@ -473,3 +473,79 @@ def custom_collate_fn(batch_list):
 
 
     return [torch.from_numpy(img_data), torch.from_numpy(mask_data), torch.from_numpy(segments_id_data), annotations_data]
+
+def custom_collate_fn2(batch_list):
+    """
+        Combines data from sampled batch to return as torch dataloader batch output
+    Args:
+        batch_list:
+
+    Returns:
+        List with image data as nd array, bbox data as nd array, image file name, bbox file name
+    """
+
+    img_data = np.stack([batch_list[i]["img"] for i in range(len(batch_list))], axis=0)
+
+    img_data = np.moveaxis(img_data, 3, 1)
+
+    img_data = img_data.astype(np.float32)
+
+
+    mask_data = np.stack([batch_list[i]["annotation_mask"] for i in range(len(batch_list))], axis=0)
+
+    mask_data = np.moveaxis(mask_data, 3, 1)
+
+    # mask_data = np.moveaxis(mask_data, 3, 1)
+
+######## for debugging of mask interpolation artifacts
+
+    # plt.imshow(mask_data[0, :, :])
+    # plt.show()
+    #
+    # unique_ids = np.unique(mask_data[0, :, :])
+    # for id in unique_ids.tolist():
+    #     tmp_vis_img = np.zeros(mask_data[0, :, :].shape)
+    #     # test = img_data[:, :] == color
+    #     # test2 = np.where(img_data == color)
+    #     # test3 = np.all(img_data == color, axis=2)
+    #     # plt.imshow(test3)
+    #     # plt.show()
+    #     tmp_vis_img[mask_data[0, :, :] == id] = 1
+    #     plt.imshow(tmp_vis_img)
+    #     plt.show()
+
+    # plt.imshow(mask_data)
+    # plt.show()
+############
+
+    # segments_info_data = [batch_list[i]["annotations_data"].pop("segments_info") for i in range(len(batch_list))]
+
+    # segments_row_size = 0
+    # for i in range(len(batch_list)):
+    #     segments_row_size += len(batch_list[i]["annotations_data"]["segments_info"])
+    #
+    # segments_id_data = np.zeros((segments_row_size, 6)) # (batch_no, segment_id, category_id, isthing, iscrowd, area)
+    #
+    # row_counter = 0
+    # for i in range(len(batch_list)):
+    #     for j in range(len(batch_list[i]["annotations_data"]["segments_info"])):
+    #         segment_info = batch_list[i]["annotations_data"]["segments_info"][j]
+    #         segments_id_data[row_counter] = np.array([i, segment_info["id"], segment_info["category_id"], batch_list[i]["categories_isthing"][segment_info["category_id"]], segment_info["iscrowd"], segment_info["area"]])
+    #         row_counter += 1
+
+    # annotations_data = [batch_list[i]["annotations_data"]["image_id"] for i in range(len(batch_list))]
+    # annotations_data = {"image_id": [batch_list[i]["annotations_data"]["image_id"] for i in range(len(batch_list))],
+    #                     "segments_info": [batch_list[i]["annotations_data"]["segments_info"] for i in range(len(batch_list))],
+    #                     "categories_isthing": [batch_list[i]["categories_isthing"] for i in range(len(batch_list))]}
+
+    annotations_data = []
+
+    for i in range(len(batch_list)):
+        batch_dict_temp = {"image_id": batch_list[i]["annotations_data"]["image_id"],
+                           "segments_info": batch_list[i]["annotations_data"]["segments_info"],
+                           "categories_isthing": batch_list[i]["categories_isthing"]
+                           }
+        annotations_data.append(batch_dict_temp)
+
+
+    return [torch.from_numpy(img_data), torch.from_numpy(mask_data), annotations_data]
