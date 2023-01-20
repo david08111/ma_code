@@ -1,0 +1,20 @@
+program: train_wandb_sweep.py
+method: bayes
+metric:
+  name: Step
+  goal: minimize
+parameters:
+  model.model_architecture.embedding_dims:
+    distribution: int_uniform
+    min: 10
+    max: 40
+  model.model_architecture.model_architecture_name:
+    distribution: categorical
+    values:
+      - unet_resnet50
+command:
+  - /home/students/dziuba/miniconda3/envs/ma_code/bin/python
+  - ${program}
+  - --config
+  - /work/scratch/dziuba/repos/ma_code/cfg/train.yaml
+  - ${args}

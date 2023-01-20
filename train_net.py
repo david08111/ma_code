@@ -1,7 +1,7 @@
 import torch
 import argparse
 import os
-from utils import Config, create_config_dict
+from utils import Config, create_config_dict, update_config_dict
 from data_handling import DataHandler, custom_collate_fn, custom_collate_fn2
 from training import Net_trainer
 from training import Loss_Wrapper

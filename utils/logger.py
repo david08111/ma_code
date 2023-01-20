@@ -4,20 +4,44 @@ import os
 import torch
 import numpy as np
 import wandb
+from utils.sampler import SamplerWrapper
+
+from functools import reduce
 from torch.utils.tensorboard import SummaryWriter
+
+def flatten_dict(dd, separator ='.', prefix =''):
+    return { prefix + separator + k if prefix else k : v
+             for kk, vv in dd.items()
+             for k, v in flatten_dict(vv, separator, kk).items()
+             } if isinstance(dd, dict) else { prefix : dd }
 
 class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
 
     last_epoch_img = 0
+    last_epoch_embedd = 0
     num_log_img_counter = 0
     num_log_img_and_mask_counter = 0
+    num_log_embedds_counter = 0
 
-    def __init__(self, name, save_path, img_log_freq=10, num_log_img=20, hyperparams_dict=None):
+    def __init__(self, name, save_path, img_log_freq=10, num_log_img=20, embedd_log_freq=10, num_log_embedds=1, wandb_config=None, hyperparams_dict={}, embedding_max_sample_size=5000, sampler=None):
         if not os.path.isdir(save_path):
             os.makedirs(save_path, exist_ok=True)
 
         self.img_log_freq = img_log_freq
         self.num_log_img = num_log_img
+        self.num_log_embedds = num_log_embedds
+
+        self.embedd_log_freq = embedd_log_freq
+        self.embedding_max_sample_size = embedding_max_sample_size
+
+        if sampler:
+            sampler_name = list(sampler.keys())[0]
+            sampler_config = sampler[sampler_name]
+            self.sampler = SamplerWrapper(sampler_name, sampler_config)
+        else:
+            sampler_name = "nthstep"
+            sampler_config = {}
+            self.sampler = SamplerWrapper(sampler_name, sampler_config)
 
         logging.basicConfig(filename=os.path.join(save_path, name + ".log"), format='Time - %(asctime)s - %(levelname)s - %(message)s', filemode='w', encoding='utf-8', level=logging.INFO, force=True)
 
@@ -25,10 +49,22 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
         # logging.setFormatter(self.logging_formatter)
         self.tb_logger = SummaryWriter(os.path.join(save_path, name + "_tb"), filename_suffix=".log")
 
+        flattened_dict = flatten_dict(hyperparams_dict)
+
+        for key in flattened_dict.keys():
+            if not isinstance(flattened_dict[key], int) or not isinstance(flattened_dict[key], float) or not isinstance(flattened_dict[key], str) or not isinstance(flattened_dict[key], bool) or not isinstance(flattened_dict[key], torch.Tensor):
+                flattened_dict[key] = str(flattened_dict[key])
+
+        self.tb_logger.add_hparams(flattened_dict, {"test": 1})
+
         wandb_path = os.path.join(save_path, name + "_wandb")
         if not os.path.isdir(wandb_path):
             os.makedirs(wandb_path, exist_ok=True)
-        wandb.init(project="MA", entity="david08111", dir=wandb_path)
+        if wandb_config:
+            wandb.init(**wandb_config, dir=wandb_path, config=hyperparams_dict)
+        else:
+            wandb.init(project="MA", entity="david08111", dir=wandb_path, config=hyperparams_dict)
+
 
 
     def add_text(self, text, level, epoch):
@@ -172,7 +208,7 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
                 self.num_log_img_and_mask_counter += 1
 
 
-    def add_embedding(self, name, embeddings, data_pts_names=None, column_names=None, epoch=None):
+    def add_embeddings(self, name, output_embeddings, data_pts_names=None, annotations_data=None, column_names=None, epoch=-1):
         """
 
         Args:
@@ -184,12 +220,68 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
         Returns:
 
         """
-        self.tb_logger.add_embedding(mat=embeddings, metadata=data_pts_names, tag=name, global_step=epoch)
 
-        embeddings_test = embeddings.tolist()
-        wandb_table = wandb.Table(columns=list(range(embeddings.shape[1])), data=embeddings_test)
+        if self.last_epoch_embedd != epoch:
+            self.last_epoch_embedd = epoch
+            self.num_log_embedds_counter = 0
 
-        wandb.log({name: wandb_table}, step=epoch)
+        for b in range(output_embeddings.shape[0]):
+
+            if epoch % self.embedd_log_freq == 0 and self.num_log_embedds_counter < self.num_log_embedds:
+                if annotations_data:
+                    caption_segment_ids = f"{name} - Segment Ids - {annotations_data[b]['image_id']}"
+                    caption_cat_ids = f"{name} - Category Ids - {annotations_data[b]['image_id']}"
+                else:
+                    caption_segment_ids = f"{name} - Segment Ids - OUTPUT {b}"
+                    caption_cat_ids = f"{name} - Category Ids - OUTPUT {b}"
+
+                final_embedding = output_embeddings[b, ...].cpu().detach().numpy()
+                data_pts_names = data_pts_names[b, :, :, :].cpu().detach().numpy()
+                test = list(final_embedding[0, ...].shape)
+                no_embedding_samples = reduce(lambda x, y: x*y, list(final_embedding[0, ...].shape))
+
+                if no_embedding_samples > self.embedding_max_sample_size:
+                    final_embedding = self.sampler.sample(final_embedding)
+                    data_pts_names = self.sampler.sample(data_pts_names)
+
+                    data_pts_names_segment_ids = data_pts_names[0, ...]
+                    data_pts_names_cat_ids = data_pts_names[1, ...]
+                else:
+
+                    # final_embedding = final_embedding[:, :int(final_embedding.shape[1] / 8),
+                    #                   :int(final_embedding.shape[2] / 8)]
+                    final_embedding = final_embedding.reshape(-1, final_embedding.shape[0])
+                    # data_pts_names = data_pts_names[b, 0, :, :].cpu().detach().numpy()
+                    # data_pts_names = data_pts_names[:int(data_pts_names.shape[0] / 8),
+                    #                  :int(data_pts_names.shape[1] / 8)]
+
+                    data_pts_names_segment_ids = data_pts_names[0, ...]
+                    data_pts_names_cat_ids = data_pts_names[1, ...]
+
+                    data_pts_names_segment_ids = data_pts_names.flatten()
+                    data_pts_names_cat_ids = data_pts_names.flatten()
+
+                data_pts_names_segment_ids = data_pts_names_segment_ids.tolist()
+                data_pts_names_cat_ids = data_pts_names_cat_ids.tolist()
+
+                final_embedding = final_embedding.T
+
+
+
+                self.tb_logger.add_embedding(mat=final_embedding, metadata=data_pts_names_segment_ids, tag=caption_segment_ids, global_step=epoch)
+                self.tb_logger.add_embedding(mat=final_embedding, metadata=data_pts_names_cat_ids,
+                                             tag=caption_cat_ids, global_step=epoch)
+
+                final_embedding = final_embedding.tolist()
+                if not column_names:
+                    columns = list(range(len(final_embedding[0])))
+                else:
+                    columns = column_names
+                wandb_table = wandb.Table(columns=columns, data=final_embedding)
+
+                wandb.log({caption_segment_ids: wandb_table}, step=epoch)
+
+                self.num_log_embedds_counter += 1
 
     def add_figure(self):
         raise NameError("Not implemented yet!")

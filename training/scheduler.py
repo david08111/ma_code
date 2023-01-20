@@ -17,5 +17,20 @@ class Scheduler_Wrapper():
         elif scheduler_type == "cosine_annealing_lr":
             return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer.optimizer, **scheduler_config)
 
-    def step(self):
-        self.optimizer.step()
+    def step(self, loss):
+        if self.scheduler_type == "reduce_on_plateau":
+            self.scheduler.step(loss)
+        else:
+            self.scheduler.step()
+
+    def load_state_dict(self, state_dict):
+        self.scheduler.load_state_dict(state_dict)
+
+    def add_param_group(self, param_group):
+        self.scheduler.add_param_group(param_group)
+
+    def state_dict(self):
+        return self.scheduler.state_dict()
+
+    def get_optimizer(self):
+        return self.scheduler

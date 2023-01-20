@@ -74,25 +74,31 @@ class PQStat():
 
 
 @get_traceback
-def pq_compute_single_core(proc_id, annotation_set, gt_folder, pred_folder, categories):
+def pq_compute_single_core(annotation_set, output_img, mask_img, categories):
     pq_stat = PQStat()
 
-    idx = 0
-    for gt_ann, pred_ann in annotation_set:
-        if idx % 100 == 0:
-            print('Core: {}, {} from {} images processed'.format(proc_id, idx, len(annotation_set)))
-        idx += 1
+    output_img = np.moveaxis(output_img, 1, -1)
+    # idx = 0
+    for i in range(len(annotation_set)):
+        # if idx % 100 == 0:
+        #     print('Core: {}, {} from {} images processed'.format(proc_id, idx, len(annotation_set)))
+        # idx += 1
 
-        pan_gt = np.array(Image.open(os.path.join(gt_folder, gt_ann['file_name'])), dtype=np.uint32)
-        pan_gt = rgb2id(pan_gt)
-        pan_pred = np.array(Image.open(os.path.join(pred_folder, pred_ann['file_name'])), dtype=np.uint32)
-        pan_pred = rgb2id(pan_pred)
+        # pan_gt = np.array(Image.open(os.path.join(gt_folder, gt_ann['file_name'])), dtype=np.uint32)
+        # pan_gt = rgb2id(pan_gt)
+        pan_gt = mask_img[i, 0, ...]
+        pan_gt = pan_gt.astype(np.uint32)
+        # pan_pred = np.array(Image.open(os.path.join(pred_folder, pred_ann['file_name'])), dtype=np.uint32)
+        # pan_pred = rgb2id(pan_pred)
+        pan_pred = rgb2id(output_img[i, ...])
+        pan_pred = pan_pred.astype(np.uint32)
 
-        gt_segms = {el['id']: el for el in gt_ann['segments_info']}
-        pred_segms = {el['id']: el for el in pred_ann['segments_info']}
+        gt_segms = {el['id']: el for el in annotation_set[i][0]['segments_info']}
+        pred_segms = {el['id']: el for el in annotation_set[i][1]['segments_info']}
 
         # predicted segments area calculation + prediction sanity checks
-        pred_labels_set = set(el['id'] for el in pred_ann['segments_info'])
+        pred_labels_set = set(el['id'] for el in annotation_set[i][1]['segments_info'])
+        test = np.unique(pan_pred, return_counts=True)
         labels, labels_cnt = np.unique(pan_pred, return_counts=True)
         for label, label_cnt in zip(labels, labels_cnt):
             if label not in pred_segms:
@@ -161,11 +167,11 @@ def pq_compute_single_core(proc_id, annotation_set, gt_folder, pred_folder, cate
             if intersection / pred_info['area'] > 0.5:
                 continue
             pq_stat[pred_info['category_id']].fp += 1
-    print('Core: {}, all {} images processed'.format(proc_id, len(annotation_set)))
+    # print('Core: {}, all {} images processed'.format(proc_id, len(annotation_set)))
     return pq_stat
 
 
-def pq_compute_multi_core(matched_annotations_list, gt_folder, pred_folder, categories):
+def pq_compute_multi_core(matched_annotations_list, output_img, mask_img, categories):
     cpu_num = multiprocessing.cpu_count()
     annotations_split = np.array_split(matched_annotations_list, cpu_num)
     print("Number of cores: {}, images per core: {}".format(cpu_num, len(annotations_split[0])))
@@ -173,7 +179,7 @@ def pq_compute_multi_core(matched_annotations_list, gt_folder, pred_folder, cate
     processes = []
     for proc_id, annotation_set in enumerate(annotations_split):
         p = workers.apply_async(pq_compute_single_core,
-                                (proc_id, annotation_set, gt_folder, pred_folder, categories))
+                                (proc_id, annotation_set, output_img, mask_img, categories))
         processes.append(p)
     pq_stat = PQStat()
     for p in processes:
@@ -181,11 +187,13 @@ def pq_compute_multi_core(matched_annotations_list, gt_folder, pred_folder, cate
     return pq_stat
 
 
-def pq_compute_custom(pred_data_dict, gt_data_dict, categories):
+def pq_compute_custom(output_img, mask_img, pred_data_dict, gt_data_dict, categories):
     """
 
     Args:
-        pred_data_dict: Dictionary containing
+        output_img: output img as ndarray - containing segment ids
+        mask_img: mask img as ndarray - containing segment ids
+        pred_data_dict:
         gt_data_dict:
         categories:
 
@@ -193,36 +201,43 @@ def pq_compute_custom(pred_data_dict, gt_data_dict, categories):
 
     """
 
+    if all(x == categories[0] for x in categories):
+        categories = categories[0]
+    else:
+        raise ValueError(
+            "Implementation doesnt support multiple dataset category associations!")  # conversion to unified categories should work
+
     start_time = time.time()
 
 
-    pred_annotations = {el['image_id']: el for el in pred_json['annotations']}
+    pred_annotations = {el['image_id']: el for el in pred_data_dict}
     matched_annotations_list = []
-    for gt_ann in gt_json['annotations']:
+    for gt_ann in gt_data_dict:
         image_id = gt_ann['image_id']
         if image_id not in pred_annotations:
             raise Exception('no prediction for the image with id: {}'.format(image_id))
         matched_annotations_list.append((gt_ann, pred_annotations[image_id]))
 
-    pq_stat = pq_compute_multi_core(matched_annotations_list, gt_folder, pred_folder, categories)
+    pq_stat = pq_compute_single_core(matched_annotations_list, output_img, mask_img, categories)
 
     metrics = [("All", None), ("Things", True), ("Stuff", False)]
     results = {}
     for name, isthing in metrics:
         results[name], per_class_results = pq_stat.pq_average(categories, isthing=isthing)
-        if name == 'All':
-            results['per_class'] = per_class_results
-    print("{:10s}| {:>5s}  {:>5s}  {:>5s} {:>5s}".format("", "PQ", "SQ", "RQ", "N"))
-    print("-" * (10 + 7 * 4))
+        # if name == 'All':
+        # results['per_class'] = per_class_results
+        results[name + '_per_class'] = per_class_results
+    # print("{:10s}| {:>5s}  {:>5s}  {:>5s} {:>5s}".format("", "PQ", "SQ", "RQ", "N"))
+    # print("-" * (10 + 7 * 4))
 
-    for name, _isthing in metrics:
-        print("{:10s}| {:5.1f}  {:5.1f}  {:5.1f} {:5d}".format(
-            name,
-            100 * results[name]['pq'],
-            100 * results[name]['sq'],
-            100 * results[name]['rq'],
-            results[name]['n'])
-        )
+    # for name, _isthing in metrics:
+    #     print("{:10s}| {:5.1f}  {:5.1f}  {:5.1f} {:5d}".format(
+    #         name,
+    #         100 * results[name]['pq'],
+    #         100 * results[name]['sq'],
+    #         100 * results[name]['rq'],
+    #         results[name]['n'])
+    #     )
 
     t_delta = time.time() - start_time
     print("Time elapsed: {:0.2f} seconds".format(t_delta))

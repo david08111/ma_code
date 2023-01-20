@@ -57,7 +57,6 @@ loss:
       radius_loss_weight: 0.5
       similarity_loss_weight: 0.5
       cosine_emb_loss_margin: -1
-
 #      hypsph_radius_map_list: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190] # (optional) specify for specific mapping of indx from cat in "cat_id_radius_order_map_list" to radius
 
 #    weighted_sum:
@@ -75,7 +74,6 @@ loss:
       radius_loss_weight: 0.5
       similarity_loss_weight: 0.5
       cosine_emb_loss_margin: -1
-
 #    weighted_sum:
 #      loss_list:
 #        - discriminative_loss: # settings as in "Semantic Instance Segmentation with a Discriminative Loss Function" paper for cityscapes
@@ -105,5 +103,13 @@ data:
 logging:
   name: "LOG"
   save_path: "/work/scratch/dziuba/ma_code_runs/logs/test_debug"
+  wandb_config:
+    project: "MA"
+    entity: "david08111"
+  sampler:
+    nthstep:
+      step_size: [6, 6]
+
+
 #  img_log_freq: 10 # set by metrics_calc_freq
 #  num_log_img: 5

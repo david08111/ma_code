@@ -3,8 +3,12 @@ import torch.nn as nn
 import torch.nn.modules as nn_modules
 import torch.nn.functional as F
 import numpy as np
-
+import sys
 from .metrics_new import pq_compute_custom, PQStat
+
+
+float_precision_eps = sys.float_info.epsilon
+float_precision_thr = float_precision_eps * 2
 
 class Loss_Wrapper():
     def __init__(self, loss_config):
@@ -108,7 +112,7 @@ class Metrics_Wrapper():
         elif metric_name == "bbox3d_bev_iou":
             return BBox3D_BEV_IOU(**metric_config)
         elif metric_name == "panoptic_quality":
-            return Panoptic_Quality
+            return Panoptic_Quality(**metric_config)
         elif metric_name == "recognition_quality":
             return Recognition_Quality(**metric_config)
         elif metric_name == "segmentation_quality":
@@ -118,13 +122,23 @@ class Metrics_Wrapper():
 
 class Panoptic_Quality(nn.Module):
     def __init__(self, filter=None):
+        super().__init__()
         self.filter = filter
         self.metric_tmp = PQStat()
         self.metric = None
 
-    def forward(self, outputs, labels, *args, **kwargs):
+    def forward(self, output_img, mask_img, *args, **kwargs):
 
-        new_pq_stat = pq_compute_custom(outputs, labels, kwargs["categories"], *args, **kwargs)
+
+        pass        # implement averaging over batch
+
+    def forward(self, output_img, mask_img, pred_data_dict, gt_data_dict, categories, *args, **kwargs):
+
+        output_img_proc = output_img.detach().cpu().numpy()
+        mask_img_proc = mask_img.detach().cpu().numpy()
+
+
+        new_pq_stat = pq_compute_custom(output_img_proc, mask_img_proc, pred_data_dict, gt_data_dict, categories, *args, **kwargs)
 
         self.metric_tmp += new_pq_stat
         # implement averaging over batch
@@ -144,6 +158,8 @@ class Panoptic_Quality(nn.Module):
 # WIP
 class Segmentation_Quality(nn.Module):
     def __init__(self, filter=None):
+        super().__init__()
+
         self.filter = filter
 
     def forward(self, outputs, labels, *args, **kwargs):
@@ -153,6 +169,8 @@ class Segmentation_Quality(nn.Module):
 # WIP
 class Recognition_Quality(nn.Module):
     def __init__(self, filter=None):
+        super().__init__()
+
         self.filter = filter
 
     def forward(self, outputs, labels, *args, **kwargs):
@@ -162,6 +180,8 @@ class Recognition_Quality(nn.Module):
 
 class InfoNCE(nn.Module):
     def __init__(self, temperature):
+        super().__init__()
+
         self.temperature = temperature
 
     def forward(self, outputs_dict, labels_dict):
@@ -169,6 +189,8 @@ class InfoNCE(nn.Module):
 
 class Discriminative_contrast_loss(nn.Module):
     def __init__(self, margin_variance, margin_distance, weighting_list):
+        super().__init__()
+
         self.margin_variance = margin_variance
         self.margin_distance = margin_distance
         self.weighting_list = weighting_list
@@ -214,18 +236,19 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
         radius_loss_counter = 0
         similarity_loss_counter = 0
 
-        for unique_cat_id in unique_cat_ids[1:]:  # skip 0
-            unique_cat_id = int(unique_cat_id.item())
-            cat_id_radius_indx = self.cat_id_radius_order_map_list.index(unique_cat_id)
-            radius = self.hypsph_radius_map_list[cat_id_radius_indx]
-            outputs_indx_select = masks[:, 1, :, :] == unique_cat_id
-            outputs_cat_id_embeddings = outputs_reordered_tmp[:, outputs_indx_select]
-            outputs_cat_id_embeddings_norm = torch.norm(outputs_cat_id_embeddings, 2, dim=0)
-            # radius_sqared_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), radius*radius, device=device)
-            radius_sqared_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), radius, device=device, dtype=torch.float32)
-            loss_tmp = mse_loss_radius(outputs_cat_id_embeddings_norm, radius_sqared_loss_part)
-            radius_loss += loss_tmp
-            radius_loss_counter += 1
+        if self.radius_loss_weight > float_precision_thr:
+            for unique_cat_id in unique_cat_ids[1:]:  # skip 0
+                unique_cat_id = int(unique_cat_id.item())
+                cat_id_radius_indx = self.cat_id_radius_order_map_list.index(unique_cat_id)
+                radius = self.hypsph_radius_map_list[cat_id_radius_indx]
+                outputs_indx_select = masks[:, 1, :, :] == unique_cat_id
+                outputs_cat_id_embeddings = outputs_reordered_tmp[:, outputs_indx_select]
+                outputs_cat_id_embeddings_norm = torch.norm(outputs_cat_id_embeddings, 2, dim=0)
+                # radius_sqared_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), radius*radius, device=device)
+                radius_sqared_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), radius, device=device, dtype=torch.float32)
+                loss_tmp = mse_loss_radius(outputs_cat_id_embeddings_norm, radius_sqared_loss_part)
+                radius_loss += loss_tmp
+                radius_loss_counter += 1
 
         ### instance discrimination part
 
@@ -233,59 +256,59 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
 
         batch_size = masks.shape[0]
 
+        if self.similarity_loss_weight > float_precision_thr:
+            for b in range(batch_size):
 
-        for b in range(batch_size):
+                inst_discr_masks = masks_reordered_tmp[:2, b, masks[b, 2, :, :] == True]
 
-            inst_discr_masks = masks_reordered_tmp[:2, b, masks[b, 2, :, :] == True]
+                unique_cat_ids = torch.unique(inst_discr_masks[1, :])
 
-            unique_cat_ids = torch.unique(inst_discr_masks[1, :])
+                for unique_cat_id in unique_cat_ids:
+                    segments_id_data = masks_reordered_tmp[:, b, masks_reordered_tmp[1, b, :, :] == unique_cat_id]
 
-            for unique_cat_id in unique_cat_ids:
-                segments_id_data = masks_reordered_tmp[:, b, masks_reordered_tmp[1, b, :, :] == unique_cat_id]
+                    unique_segment_ids = torch.unique(segments_id_data[0, :])
 
-                unique_segment_ids = torch.unique(segments_id_data[0, :])
+                    segment_id_embeddings_dict = {}
+                    # gather embeddings and calculate cosineembeddingloss with itself
 
-                segment_id_embeddings_dict = {}
-                # gather embeddings and calculate cosineembeddingloss with itself
+                    for unique_segment_id in unique_segment_ids:
+                        segment_id_embeddings = outputs[b, :, masks_reordered_tmp[0, b, :, :] == unique_segment_id]
+                        segment_id_embeddings_dict[unique_segment_id.item()] = segment_id_embeddings
 
-                for unique_segment_id in unique_segment_ids:
-                    segment_id_embeddings = outputs[b, :, masks_reordered_tmp[0, b, :, :] == unique_segment_id]
-                    segment_id_embeddings_dict[unique_segment_id.item()] = segment_id_embeddings
-
-                    segment_id_embeddings = torch.div(segment_id_embeddings, torch.norm(segment_id_embeddings, 2, dim=0) + 0.000001)
-                    dot_product_embeddings = torch.matmul(torch.transpose(segment_id_embeddings, 0, 1), segment_id_embeddings)
-
-                    dot_product_embeddings = torch.triu(dot_product_embeddings)
-                    # test = dot_product_embeddings.nonzero(as_tuple=True)
-                    dot_product_embeddings = dot_product_embeddings[dot_product_embeddings.nonzero(as_tuple=True)]
-                    dot_product_embeddings = torch.mul(dot_product_embeddings, -1)
-                    dot_product_embeddings = torch.add(dot_product_embeddings, 1)
-                    dot_product_embeddings_mean = torch.mean(dot_product_embeddings)
-                    similarity_loss += dot_product_embeddings_mean
-                    similarity_loss_counter += 1
-
-
-                for i in range(unique_segment_ids.shape[0] - 1):
-                    unique_segment_id = unique_segment_ids[i]
-                    for neg_unique_segment_id in unique_segment_ids[i+1:]:
-
-                        curr_embedding = segment_id_embeddings_dict[unique_segment_id.item()]
-                        neg_embedding = segment_id_embeddings_dict[neg_unique_segment_id.item()]
-
-                        curr_embedding = torch.div(curr_embedding, torch.norm(curr_embedding, 2, dim=0) + 0.000001)
-                        neg_embedding = torch.div(neg_embedding, torch.norm(neg_embedding, 2, dim=0) + 0.000001)
-
-                        dot_product_embeddings = torch.matmul(torch.transpose(curr_embedding, 0, 1), neg_embedding)
+                        segment_id_embeddings = torch.div(segment_id_embeddings, torch.norm(segment_id_embeddings, 2, dim=0) + 0.000001)
+                        dot_product_embeddings = torch.matmul(torch.transpose(segment_id_embeddings, 0, 1), segment_id_embeddings)
 
                         dot_product_embeddings = torch.triu(dot_product_embeddings)
                         # test = dot_product_embeddings.nonzero(as_tuple=True)
                         dot_product_embeddings = dot_product_embeddings[dot_product_embeddings.nonzero(as_tuple=True)]
-                        dot_product_embeddings = torch.add(dot_product_embeddings, -self.cosine_emb_loss_margin)
-                        dot_product_embeddings = torch.clamp(dot_product_embeddings, min=0)
+                        dot_product_embeddings = torch.mul(dot_product_embeddings, -1)
+                        dot_product_embeddings = torch.add(dot_product_embeddings, 1)
                         dot_product_embeddings_mean = torch.mean(dot_product_embeddings)
-
                         similarity_loss += dot_product_embeddings_mean
                         similarity_loss_counter += 1
+
+
+                    for i in range(unique_segment_ids.shape[0] - 1):
+                        unique_segment_id = unique_segment_ids[i]
+                        for neg_unique_segment_id in unique_segment_ids[i+1:]:
+
+                            curr_embedding = segment_id_embeddings_dict[unique_segment_id.item()]
+                            neg_embedding = segment_id_embeddings_dict[neg_unique_segment_id.item()]
+
+                            curr_embedding = torch.div(curr_embedding, torch.norm(curr_embedding, 2, dim=0) + 0.000001)
+                            neg_embedding = torch.div(neg_embedding, torch.norm(neg_embedding, 2, dim=0) + 0.000001)
+
+                            dot_product_embeddings = torch.matmul(torch.transpose(curr_embedding, 0, 1), neg_embedding)
+
+                            dot_product_embeddings = torch.triu(dot_product_embeddings)
+                            # test = dot_product_embeddings.nonzero(as_tuple=True)
+                            dot_product_embeddings = dot_product_embeddings[dot_product_embeddings.nonzero(as_tuple=True)]
+                            dot_product_embeddings = torch.add(dot_product_embeddings, -self.cosine_emb_loss_margin)
+                            dot_product_embeddings = torch.clamp(dot_product_embeddings, min=0)
+                            dot_product_embeddings_mean = torch.mean(dot_product_embeddings)
+
+                            similarity_loss += dot_product_embeddings_mean
+                            similarity_loss_counter += 1
 
         radius_loss /= radius_loss_counter
 
@@ -300,6 +323,8 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
 
 class Weighted_sum(nn.Module):
     def __init__(self, loss_list, weights_list):
+        super().__init__()
+
         self.loss_list = []
         self.weights_list = weights_list
 
@@ -317,6 +342,8 @@ class Weighted_sum(nn.Module):
 
 class Average_sum(nn.Module):
     def __init__(self, loss_list):
+        super().__init__()
+
         self.loss_list = []
 
         for loss in loss_list:

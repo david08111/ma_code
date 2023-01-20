@@ -26,6 +26,30 @@ def create_config_dict(config_file_path):
 
     return config_dict
 
+def update_config_dict(config_dict):
+    config = Config()
+
+    ## dataset_config
+    dataset_config_dict = config(os.path.abspath(config_dict["data"]["datasets_file_path"]))
+
+    config_dict["data"]["datasets_split"] = dataset_config_dict
+
+    ## augmentations_config
+
+    augmentations_config_dict = config(os.path.abspath(config_dict["data"]["augmentations_file_path"]))
+
+    config_dict["data"]["augmentations"] = augmentations_config_dict
+
+    ## model architecture_config
+    if "model_architecture_file_path" in config_dict["model"].keys():
+        model_architecture_config_dict = config(os.path.abspath(config_dict["model"]["model_architecture_file_path"]))
+
+        config_dict["model"]["architecture_config"] = model_architecture_config_dict
+
+        set_var_vals_by_name(config_dict, config_dict)
+
+    return config_dict
+
 def set_var_vals_by_name(config, global_config_dict):
     iter_items_list = config.keys() if isinstance(config, dict) else range(len(config)) if isinstance(config, list) else []
     for key in iter_items_list:

@@ -193,110 +193,49 @@ class Net_trainer():
 
             self.optimizer.optimizer.step()
 
-            final_outputs, final_output_segmentation_data = net.create_output_from_embeddings(outputs, self.dataset_category_dict["train_loader"], annotations_data)
 
-            import wandb
-            # wandb.config = self.hyperparams_dict
-            wandb.config.update(self.hyperparams_dict)
-
-            test_output_masks = final_outputs.cpu().detach().numpy()
-            test_output_masks = np.moveaxis(test_output_masks, 1, -1)
-            for i in range(test_output_masks.shape[0]):
-
-                plt.imshow(test_output_masks[i, ...])
-                plt.show()
-
-            meta = []
-            import keyword
-            while len(meta) < 100:
-                meta = meta + keyword.kwlist  # get some strings
-            meta = meta[:100]
-
-            for i, v in enumerate(meta):
-                meta[i] = v + str(i)
-
-            self.train_logger.add_embedding("TEST-Embedding", embeddings=np.random.randn(100, 5), data_pts_names=None, epoch=epoch)
-
-            # self.train_logger.wandb_add_graph(net.model, self.criterions["criterion_train"].loss)
-            self.train_logger.add_image_and_mask("Panoptic Masks", inputs, masks, annotations_data, final_outputs, final_output_segmentation_data, epoch, self.dataset_category_dict["train_loader"])
-            # self.train_logger.add_image_and_mask("Output-Mask", inputs, final_outputs, final_output_segmentation_data, epoch, self.dataset_category_dict["train_loader"])
-
-            self.train_logger.add_text("TEST TEXT!", logging.INFO, epoch)
-            self.train_logger.add_scalar("TEST SCALAR!", 69, epoch)
-            self.train_logger.add_image("TEST IMAGE", test_output_masks, final_output_segmentation_data, epoch)
-            test_embedding = outputs[0, ...].cpu().detach().numpy()
-            test_embedding = test_embedding[:, :int(test_embedding.shape[1]/8), :int(test_embedding.shape[2]/8)]
-            test_embedding = test_embedding.reshape(-1, test_embedding.shape[0])
-            test_data_pts_ids = masks[0, 0,:, :].cpu().detach().numpy()
-            test_data_pts_ids = test_data_pts_ids[:int(test_data_pts_ids.shape[0]/8), :int(test_data_pts_ids.shape[1]/8)]
-            test_data_pts_ids = test_data_pts_ids.flatten()
-            test_embedding2 = np.random.rand(50, 3)
-            # self.train_logger.add_embedding("Output-Embeddings", embeddings=test_embedding2, metadata=None, epoch=epoch)
-            self.train_logger.add_graph(net.model, inputs)
-            self.train_logger.add_embedding("Output-Embeddings", embeddings=test_embedding, data_pts_names=test_data_pts_ids, epoch=epoch)
-            self.train_logger.flush()
+            if epoch % self.metrics_calc_freq == 0:
+                final_outputs, final_output_segmentation_data = net.create_output_from_embeddings(outputs, self.dataset_category_dict["train_loader"], annotations_data)
+                for key in self.criterions["criterion_metrics"].keys():
+                    # test = self.criterions["criterion_metrics"][key]
+                    self.criterions["criterion_metrics"][key].metric(final_outputs, masks, final_output_segmentation_data, annotations_data, categories=self.dataset_category_dict["train_loader"])
 
 
             loss_sum += loss.item()
 
 
             if self.train_logger:
-                if epoch % Net_trainer.log_img_save_freq == 0 and log_img_counter < Net_trainer.log_num_img:
+                self.train_logger.add_text(f"STEP {batch_id}", logging.INFO, epoch)
+                self.train_logger.add_image_and_mask("Panoptic Masks", inputs, masks, annotations_data, final_outputs,
+                                                     final_output_segmentation_data, epoch,
+                                                     self.dataset_category_dict["train_loader"])
+                # self.train_logger.add_scalar("TEST SCALAR!", 69, epoch)
+                # self.train_logger.add_image("TEST IMAGE", test_output_masks, final_output_segmentation_data, epoch)
+                # self.train_logger.add_graph(net.model, inputs)
 
-                    visualized_img = None # WIP
-                    self.train_logger.add_image("img_train_epoch_" + str(epoch) + "_num_" + str(log_img_counter) + "_input",
-                                                visualized_img, epoch, dataformats="NHWC")
-                    self.train_logger.flush()
-                    log_img_counter += 1
+                self.train_logger.add_embeddings("Output-Embeddings", output_embeddings=outputs, data_pts_names=masks, annotations_data=annotations_data, epoch=epoch)
+                self.train_logger.flush()
 
         loss_sum /= len(data["train_loader"])
 
         # for metric in metrics_sum:
         #     metrics_sum[metric] /= len(data["train_loader"])
 
-        # if self.scheduler.scheduler_type == "reduce_on_plateau":
-        #     self.scheduler.scheduler.step(loss_sum)
-        # else:
-        #     self.scheduler.scheduler.step()
+        self.scheduler.scheduler.step(loss_sum)
 
 
 
         if self.train_logger:
-            self.train_logger.add_scalar("train_loss_" + self.criterions["criterion_train"].loss_type, loss_sum, epoch)
-            self.train_logger.add_scalar("learning_rate_" + self.scheduler.scheduler_type, self.optimizer.optimizer.param_groups[0]["lr"], epoch)
+            self.train_logger.add_text(f"Finalizing Epoch", logging.INFO, epoch)
+            self.train_logger.add_text(f"Train Loss {loss_sum}", logging.INFO, epoch)
+            self.train_logger.add_text(f"Learning Rate {self.optimizer.optimizer.param_groups[0]['lr']}", logging.INFO, epoch)
+            self.train_logger.add_scalar(f"Train Loss {self.criterions['criterion_train'].loss_type}", loss_sum, epoch)
+            self.train_logger.add_scalar(f"Learning Rate", self.optimizer.optimizer.param_groups[0]['lr'], epoch)
 
-            # for metric in self.criterions["criterion_metrics"]:
-            #     if metric != "metric_additional":
-            #         if self.criterions["criterion_metrics"][metric].metric_type != "accuracy" and self.criterions["criterion_metrics"][metric].metric_type != "precision" and self.criterions["criterion_metrics"][metric].metric_type != "recall" and self.criterions["criterion_metrics"][metric].metric_type != "f1_score" and self.criterions["criterion_metrics"][metric].metric_type != "false_pos_rate" and metric != "metric_additional":
-            #             self.log_writer.add_scalar("train_metric_" + self.criterions["criterion_metrics"][metric].metric_type, metrics_sum[metric], epoch)
-            #         else:
-            #             if epoch % Net_trainer.log_img_save_freq == 0:
-            #                 eval_metrics[self.criterions["criterion_metrics"][metric].metric_type] = {self.criterions["criterion_metrics"]["metric_additional"][threshold].metric_config["threshold"]: Metrics_Wrapper({"metric_type": self.criterions["criterion_metrics"][metric].metric_type, "threshold": self.criterions["criterion_metrics"]["metric_additional"][threshold].metric_config["threshold"]}).metric.calc(metrics_sum[threshold]) for threshold in self.criterions["criterion_metrics"]["metric_additional"]}
+            self.train_logger.add_graph(net.model, inputs)
 
-            # if eval_metrics:
-            #     for metric in eval_metrics:
-            #         sorted_metric_list = sorted(eval_metrics[metric].items())
-            #         plot_metric_x, plot_metric_y = zip(*sorted_metric_list)
-            #
-            #         fig = plt.figure()
-            #         ax = fig.add_subplot()
-            #         ax.set_title(metric)
-            #         ax.set_xlabel("thresholds")
-            #         ax.set_ylabel(metric)
-            #         ax.plot(plot_metric_x, plot_metric_y)
-            #         self.log_writer.add_figure(metric + "_train_epoch_" + str(epoch), fig, epoch)
-            #
-            #     if "precision" in eval_metrics.keys() and "recall" in eval_metrics.keys():
-            #         fig_pr = plot_pr_curve(eval_metrics["precision"], eval_metrics["recall"])
-            #         self.log_writer.add_figure("pr_curve_train_epoch_" + str(epoch), fig_pr, epoch)
-            #
-            #     if "recall" in eval_metrics.keys() and "false_pos_rate" in eval_metrics.keys():
-            #         fig_roc = plot_roc_curve(eval_metrics["recall"], eval_metrics["false_pos_rate"])
-            #         self.log_writer.add_figure("roc_curve_train_epoch_" + str(epoch), fig_roc, epoch)
+            # metrics stuff
 
-
-            # self.log_writer.add_pr_curve_raw()
-            # self.log_writer.add_pr_curve("pr_curve_train", )
             self.train_logger.flush()
 
 

@@ -1,8 +1,9 @@
 import torch
 import argparse
+import yaml
 import os
 import sys
-from utils import Config, create_config_dict
+from utils import Config, create_config_dict, update_config_dict
 from data_handling import DataHandler, custom_collate_fn, custom_collate_fn2
 from training import Net_trainer
 from training import Loss_Wrapper
@@ -10,6 +11,8 @@ from training import Metrics_Wrapper
 from models import Model
 from torch.utils.data import DataLoader
 
+# def update_config_dict(config_dict_base, config_dict_update):
+#     pass
 
 def add_nested_dict_from_list(config_dict, nested_dict_level_list, val):
     if len(nested_dict_level_list) > 1:
@@ -20,7 +23,11 @@ def add_nested_dict_from_list(config_dict, nested_dict_level_list, val):
             config_dict[key] = {}
             add_nested_dict_from_list(config_dict[key], nested_dict_level_list, val)
     elif len(nested_dict_level_list) == 1:
-        config_dict[nested_dict_level_list[0]] = val
+        parse_string = f'{{"{nested_dict_level_list[0]}": {val}}}'
+        config_dict_tmp = yaml.safe_load(parse_string)
+        final_val = config_dict_tmp[nested_dict_level_list[0]]
+
+        config_dict[nested_dict_level_list[0]] = final_val
 
 def create_nested_dict_from_list(nested_dict_level_list, val):
     if len(nested_dict_level_list) > 1:
@@ -29,9 +36,9 @@ def create_nested_dict_from_list(nested_dict_level_list, val):
     elif len(nested_dict_level_list) == 1:
         return {nested_dict_level_list[0]: val}
 
-def convert_arg_list2config_dict(arg_list):
+def convert_arg_list2config_dict(config_dict, arg_list):
 
-    config_dict = {}
+    # config_dict = {}
 
     for elem in arg_list:
         # split into key and value with "="
@@ -51,12 +58,14 @@ def convert_arg_list2config_dict(arg_list):
         # nested_dict_elem = create_nested_dict_from_list(nested_dict_level_list, val)
         add_nested_dict_from_list(config_dict, nested_dict_level_list, val)
 
+    return config_dict
+
 def train_net(config_dict):
     torch.manual_seed(10)
     # config = Config()
 
     # config_dict = config(os.path.abspath(config_path))
-    # config_dict = create_config_dict(os.path.abspath(config_path))
+    config_dict = update_config_dict(config_dict)
 
     # dataset_config_dict = create_dataset_config(os.path.abspath(config_dict["data"]["datasets_file_path"]), config_dict)
     # dataset_config_dict = config(os.path.abspath(config_dict["data"]["datasets_file_path"]))
@@ -98,7 +107,43 @@ def train_net(config_dict):
     net_trainer.train(model, device, data)
 
 if __name__ == "__main__":
+    import wandb
+    arglist = sys.argv[1:]
+    if arglist[0] == "--config" and os.path.isfile(arglist[1]):
+        config = Config()
+        config_dict_base = config(os.path.abspath(arglist[1]))
+        # config_dict = create_config_dict(os.path.abspath(config_path))
 
-    config_dict = convert_arg_list2config_dict(sys.argv[1:])
+    arglist_update = arglist[2:]
 
-    train_net(config_dict)
+    arglist_final = []
+    # for i in range(len(arglist) - 1):
+    #     if not (arglist[i][:2] == "--" and arglist[i+1][:2] == "--"):
+
+    arg_grouping_correct = False
+    while(not arg_grouping_correct):
+        arglist_tmp = []
+        correct_run = True
+        for i in range(len(arglist_update) - 1):
+            if not (arglist_update[i][:2] == "--" and arglist_update[i+1][:2] == "--"):
+                elem_combined = arglist_update[i] + arglist_update[i+1]
+                arglist_tmp.append(elem_combined)
+                correct_run = False
+                arglist_update = arglist_tmp + arglist_update[i+2:]
+                break
+            else:
+                arglist_tmp.append(arglist_update[i])
+        if correct_run:
+            arg_grouping_correct = True
+            # arglist_update = arglist_tmp
+
+
+    # config_dict_sweep = convert_arg_list2config_dict(sys.argv[2:])
+
+    config_dict_sweep = convert_arg_list2config_dict(config_dict_base, arglist_update)
+
+    train_net(config_dict_sweep)
+
+
+
+
