@@ -33,7 +33,8 @@ class Net_trainer():
         if "max" in best_eval_mode:
             self.best_loss_score = 0
 
-        # torch.backends.cudnn.enabled = False
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cudnn.enabled = True
 
         self.hyperparams_dict = self.create_hyperparams_dict(kwargs["config_dict"])
 
@@ -109,13 +110,13 @@ class Net_trainer():
             "scheduler": scheduler.scheduler.state_dict(),
             "best_loss": self.best_loss_score
         }
-        torch.save(check_pt, os.path.join(self.save_path, net.net_name + "_chkpt_" + str(epoch) + ".pth"))
+        torch.save(check_pt, os.path.join(self.save_path, net.model_architecture_name + "_chkpt_" + str(epoch) + ".pth"))
 
     def save_model(self, net, best=False):
         if best:
-            torch.save(net.model.state_dict(), os.path.join(self.save_path, net.net_name + "_chkpt_best.pth"))
+            torch.save(net.model.state_dict(), os.path.join(self.save_path, net.model_architecture_name + "_chkpt_best.pth"))
         else:
-            torch.save(net.model.state_dict(), os.path.join(self.save_path, net.name + ".pth"))
+            torch.save(net.model.state_dict(), os.path.join(self.save_path, net.model_architecture_name + ".pth"))
 
     def load_checkpoint(self, net, path):
         loaded_check_pt = torch.load(path)
@@ -141,24 +142,25 @@ class Net_trainer():
 
     def train_step(self, epoch, net, device, data):
 
-        log_img_counter = 0
-
         loss_sum = 0
+        loss_items_sum = {}
         # metrics_sum = {}
-        # eval_metrics = {}
+
+        for key in self.criterions["criterion_metrics"].keys():
+            self.criterions["criterion_metrics"][key].metric.reset()
 
         # net.model.to(device)
         net.model.train()
 
         for batch_id, datam in enumerate(tqdm(data["train_loader"], desc="Train_batch", file=sys.stdout)):
+            # if batch_id < 700:
+            #     continue
 
             self.optimizer.optimizer.zero_grad()
 
             # [inputs, masks, segments_id_data, annotations_data] = datam
             [inputs, masks, annotations_data] = datam
 
-            # inputs = torch.tensor(inputs, device=device, dtype=torch.float32)
-            # labels = torch.tensor(labels, device=device, dtype=torch.float32)[:, :, :, 0:1]
 
             inputs = inputs.to(device, non_blocking=True)
             masks = masks.to(device, non_blocking=True)
@@ -168,8 +170,6 @@ class Net_trainer():
 
             outputs = net.model(inputs)
 
-            # test = outputs.detach().cpu().numpy()
-            # test2 = labels.detach().cpu().numpy()
 
             # inp = inputs.cpu().numpy()[0, :, :, :]
             # inp = np.moveaxis(inp, 0, -1)
@@ -180,14 +180,7 @@ class Net_trainer():
             # plt.imshow(lab)
             # plt.show()
 
-            loss = self.criterions["criterion_train"].loss(outputs, masks, annotations_data)
-
-            # print("labels:")
-            # print(labels)
-            # print("outputs:")
-            # print(outputs)
-            # print("loss:")
-            # print(loss)
+            loss, loss_items = self.criterions["criterion_train"].loss(outputs, masks, annotations_data)
 
             loss.backward()
 
@@ -197,42 +190,62 @@ class Net_trainer():
             if epoch % self.metrics_calc_freq == 0:
                 final_outputs, final_output_segmentation_data = net.create_output_from_embeddings(outputs, self.dataset_category_dict["train_loader"], annotations_data)
                 for key in self.criterions["criterion_metrics"].keys():
-                    # test = self.criterions["criterion_metrics"][key]
                     self.criterions["criterion_metrics"][key].metric(final_outputs, masks, final_output_segmentation_data, annotations_data, categories=self.dataset_category_dict["train_loader"])
+
+                if self.train_logger:
+                    self.train_logger.add_image_and_mask("Panoptic Masks", inputs, masks, annotations_data,
+                                                         final_outputs,
+                                                         final_output_segmentation_data, epoch,
+                                                         self.dataset_category_dict["train_loader"])
 
 
             loss_sum += loss.item()
 
+            for key in loss_items.keys():
+                if key not in loss_items_sum.keys():
+                    loss_items_sum[key] = loss_items[key]
+                else:
+                    loss_items_sum[key] += loss_items[key]
+
 
             if self.train_logger:
                 self.train_logger.add_text(f"STEP {batch_id}", logging.INFO, epoch)
-                self.train_logger.add_image_and_mask("Panoptic Masks", inputs, masks, annotations_data, final_outputs,
-                                                     final_output_segmentation_data, epoch,
-                                                     self.dataset_category_dict["train_loader"])
-                # self.train_logger.add_scalar("TEST SCALAR!", 69, epoch)
+                # self.train_logger.add_image_and_mask("Panoptic Masks", inputs, masks, annotations_data, final_outputs,
+                #                                      final_output_segmentation_data, epoch,
+                #                                      self.dataset_category_dict["train_loader"])
                 # self.train_logger.add_image("TEST IMAGE", test_output_masks, final_output_segmentation_data, epoch)
-                # self.train_logger.add_graph(net.model, inputs)
 
-                self.train_logger.add_embeddings("Output-Embeddings", output_embeddings=outputs, data_pts_names=masks, annotations_data=annotations_data, epoch=epoch)
-                self.train_logger.flush()
+                self.train_logger.add_embeddings("Output-Embeddings-Train", output_embeddings=outputs, data_pts_names=masks, annotations_data=annotations_data, epoch=epoch)
+                # self.train_logger.flush()
 
         loss_sum /= len(data["train_loader"])
+        for key in loss_items_sum.keys():
+            loss_items_sum[key] /= len(data["train_loader"])
 
         # for metric in metrics_sum:
         #     metrics_sum[metric] /= len(data["train_loader"])
 
-        self.scheduler.scheduler.step(loss_sum)
-
+        if epoch % self.metrics_calc_freq == 0:
+            for key in self.criterions["criterion_metrics"].keys():
+                self.criterions["criterion_metrics"][key].metric.process_end_batch(categories=self.dataset_category_dict["train_loader"])
 
 
         if self.train_logger:
-            self.train_logger.add_text(f"Finalizing Epoch", logging.INFO, epoch)
+            self.train_logger.add_text(f"Finalizing Train Step", logging.INFO, epoch)
             self.train_logger.add_text(f"Train Loss {loss_sum}", logging.INFO, epoch)
             self.train_logger.add_text(f"Learning Rate {self.optimizer.optimizer.param_groups[0]['lr']}", logging.INFO, epoch)
             self.train_logger.add_scalar(f"Train Loss {self.criterions['criterion_train'].loss_type}", loss_sum, epoch)
             self.train_logger.add_scalar(f"Learning Rate", self.optimizer.optimizer.param_groups[0]['lr'], epoch)
 
-            self.train_logger.add_graph(net.model, inputs)
+            for key in loss_items_sum.keys():
+                self.train_logger.add_text(f"Train Loss Item {key} - {loss_items_sum[key]}", logging.INFO, epoch)
+                self.train_logger.add_scalar(f"Train Loss Item {key}", loss_items_sum[key],
+                                             epoch)
+
+
+            if epoch % self.metrics_calc_freq == 0:
+                for key in self.criterions["criterion_metrics"].keys():
+                    self.criterions["criterion_metrics"][key].metric.log_metric(self.train_logger, "Train", epoch, categories=self.dataset_category_dict["train_loader"])
 
             # metrics stuff
 
@@ -241,43 +254,25 @@ class Net_trainer():
 
     def val(self, epoch, net, device, data):
 
-        log_img_counter = 0
-
         loss_sum = 0
-        # metrics_sum = {}
-        # eval_metrics = {}
-        # for metric in self.criterions["criterion_metrics"]:
-        #     if metric != "metric_additional":
-        #         if self.criterions["criterion_metrics"][metric].metric_type != "accuracy" and \
-        #                 self.criterions["criterion_metrics"][metric].metric_type != "precision" and \
-        #                 self.criterions["criterion_metrics"][metric].metric_type != "recall" and \
-        #                 self.criterions["criterion_metrics"][metric].metric_type != "f1_score" and \
-        #                 self.criterions["criterion_metrics"][metric].metric_type != "false_pos_rate":
-        #             metrics_sum[metric] = 0
-        #     else:
-        #         if epoch % Net_trainer.log_img_save_freq == 0:
-        #             for threshold in self.criterions["criterion_metrics"][metric]:
-        #                 metrics_sum[threshold] = 0
+        loss_items_sum = {}
+
+        for key in self.criterions["criterion_metrics"].keys():
+            self.criterions["criterion_metrics"][key].metric.reset()
+
+        self.train_logger.reset_img_emb_counter()
+
         net.model.eval()
         with torch.no_grad():
 
             for batch_id, datam in enumerate(tqdm(data["val_loader"], desc="Val_batch", file=sys.stdout)):
 
-
-
-                [inputs, labels, input_name, label_name, crop_pos_list, cam_extr_list, img_list_full] = datam
-
-                # inputs = torch.tensor(inputs, device=device, dtype=torch.float32)
-                # labels = torch.tensor(labels, device=device, dtype=torch.float32)[:, :, :, 0:1]
+                [inputs, masks, annotations_data] = datam
 
                 inputs = inputs.to(device, non_blocking=True)
-                labels = labels.to(device, non_blocking=True)
-                # labels = labels.narrow(3, 0, 1)
-                inputs = inputs.permute((0, 3, 2, 1))
+                masks = masks.to(device, non_blocking=True)
 
                 outputs = net.model(inputs)
-
-                final_outputs, annotation_data = net.create_final_outputs(outputs, self.cam_config["fx"], inputs.shape[2])
 
                 # test = outputs.cpu().numpy()
 
@@ -288,85 +283,82 @@ class Net_trainer():
                 # plt.imshow(labels.cpu().numpy()[0, :, :, 0])
                 # plt.show()
 
-                loss = self.criterions["criterion_train"].loss(outputs, labels)
+                loss, loss_items = self.criterions["criterion_val"].loss(outputs, masks, annotations_data)
+
+                if epoch % self.metrics_calc_freq == 0:
+                    final_outputs, final_output_segmentation_data = net.create_output_from_embeddings(outputs,
+                                                                                                      self.dataset_category_dict[
+                                                                                                          "val_loader"],
+                                                                                                      annotations_data)
+                    for key in self.criterions["criterion_metrics"].keys():
+                        self.criterions["criterion_metrics"][key].metric(final_outputs, masks,
+                                                                         final_output_segmentation_data,
+                                                                         annotations_data,
+                                                                         categories=self.dataset_category_dict[
+                                                                             "val_loader"])
+                    if self.train_logger:
+                        self.train_logger.add_image_and_mask("Panoptic Masks", inputs, masks, annotations_data,
+                                                             final_outputs,
+                                                             final_output_segmentation_data, epoch,
+                                                             self.dataset_category_dict["val_loader"])
 
                 loss_sum += loss.item()
 
-                # for metric in metrics_sum:
-                #     # if metric != "accuracy" and metric != "precision" and metric != "recall" and metric != "f1_score" and metric != "false_pos_rate":
-                #     if "threshold" not in metric:
-                #         metrics_sum[metric] += self.criterions["criterion_metrics"][metric].metric(outputs, labels, final_outputs=final_outputs, crop_pos_list=crop_pos_list, cam_config=self.cam_config,
-                #                                          cam_extr_list=cam_extr_list, input_img_size=inputs.shape[2])
-                #     else:
-                #         if epoch % Net_trainer.log_img_save_freq == 0:
-                #             metrics_sum[metric] += self.criterions["criterion_metrics"]["metric_additional"][metric].metric(
-                #                 outputs, labels)
+                for key in loss_items.keys():
+                    if key not in loss_items_sum.keys():
+                        loss_items_sum[key] = loss_items[key]
+                    else:
+                        loss_items_sum[key] += loss_items[key]
 
                 if self.train_logger:
-                    if epoch % Net_trainer.log_img_save_freq == 0 and log_img_counter < Net_trainer.log_num_img:
-                        # visualized_img = visualize_3d_bboxes(inputs.detach().cpu().numpy(), final_outputs.detach().cpu().numpy(), labels.detach().cpu().numpy()[:, 1:], crop_pos_list, self.cam_config,
-                        #                                      cam_extr_list, img_list_full)
-                        # visualized_img *= 255
+                    self.train_logger.add_text(f"STEP {batch_id}", logging.INFO, epoch)
+                    # self.train_logger.add_image_and_mask("Panoptic Masks", inputs, masks, annotations_data,
+                    #                                      final_outputs,
+                    #                                      final_output_segmentation_data, epoch,
+                    #                                      self.dataset_category_dict["val_loader"])
+                    # self.train_logger.add_scalar("TEST SCALAR!", 69, epoch)
+                    # self.train_logger.add_image("TEST IMAGE", test_output_masks, final_output_segmentation_data, epoch)
+                    # self.train_logger.add_graph(net.model, inputs)
 
-                        visualized_img = None # WIP
-                        self.train_logger.add_image("img_val_epoch_" + str(epoch) + "_num_" + str(log_img_counter) + "_input",
-                                                    visualized_img, epoch, dataformats="NHWC")
-                        self.train_logger.flush()
-                        log_img_counter += 1
+                    self.train_logger.add_embeddings("Output-Embeddings-Validation", output_embeddings=outputs,
+                                                     data_pts_names=masks, annotations_data=annotations_data,
+                                                     epoch=epoch)
+                    # self.train_logger.flush()
 
         loss_sum /= len(data["val_loader"])
+        for key in loss_items_sum.keys():
+            loss_items_sum[key] /= len(data["val_loader"])
 
         # for metric in metrics_sum:
         #     metrics_sum[metric] /= len(data["train_loader"])
 
-        if self.scheduler.scheduler_type == "reduce_on_plateau":
-            self.scheduler.scheduler.step(loss_sum)
-        else:
-            self.scheduler.scheduler.step()
+
+        self.scheduler.scheduler.step(loss_sum)
+
+        if epoch % self.metrics_calc_freq == 0:
+            for key in self.criterions["criterion_metrics"].keys():
+                self.criterions["criterion_metrics"][key].metric.process_end_batch(categories=self.dataset_category_dict["val_loader"])
+
 
         if self.train_logger:
-            self.train_logger.add_scalar("val_loss_" + self.criterions["criterion_val"].loss_type, loss_sum, epoch)
-            # for metric in self.criterions["criterion_metrics"]:
-            #     if metric != "metric_additional":
-            #         if self.criterions["criterion_metrics"][metric].metric_type != "accuracy" and \
-            #                 self.criterions["criterion_metrics"][metric].metric_type != "precision" and \
-            #                 self.criterions["criterion_metrics"][metric].metric_type != "recall" and \
-            #                 self.criterions["criterion_metrics"][metric].metric_type != "f1_score" and \
-            #                 self.criterions["criterion_metrics"][
-            #                     metric].metric_type != "false_pos_rate" and metric != "metric_additional":
-            #             self.log_writer.add_scalar(
-            #                 "val_metric_" + self.criterions["criterion_metrics"][metric].metric_type,
-            #                 metrics_sum[metric], epoch)
-            #         else:
-            #             if epoch % Net_trainer.log_img_save_freq == 0:
-            #                 eval_metrics[self.criterions["criterion_metrics"][metric].metric_type] = {
-            #                     self.criterions["criterion_metrics"]["metric_additional"][threshold].metric_config[
-            #                         "threshold"]: Metrics_Wrapper(
-            #                         {"metric_type": self.criterions["criterion_metrics"][metric].metric_type, "threshold":
-            #                             self.criterions["criterion_metrics"]["metric_additional"][threshold].metric_config[
-            #                                 "threshold"]}).metric.calc(metrics_sum[threshold]) for threshold in
-            #                     self.criterions["criterion_metrics"]["metric_additional"]}
+            self.train_logger.add_text(f"Finalizing Val Step", logging.INFO, epoch)
+            self.train_logger.add_text(f"Validation Loss {loss_sum}", logging.INFO, epoch)
+            # self.train_logger.add_text(f"Learning Rate {self.optimizer.optimizer.param_groups[0]['lr']}", logging.INFO,
+            #                            epoch)
+            self.train_logger.add_scalar(f"Validation Loss {self.criterions['criterion_val'].loss_type}", loss_sum, epoch)
+            # self.train_logger.add_scalar(f"Learning Rate", self.optimizer.optimizer.param_groups[0]['lr'], epoch)
+            for key in loss_items_sum.keys():
+                self.train_logger.add_text(f"Val Loss Item {key} - {loss_items_sum[key]}", logging.INFO, epoch)
+                self.train_logger.add_scalar(f"Val Loss Item {key}", loss_items_sum[key],
+                                             epoch)
 
-            # if eval_metrics:
-            #     for metric in eval_metrics:
-            #         sorted_metric_list = sorted(eval_metrics[metric].items())
-            #         plot_metric_x, plot_metric_y = zip(*sorted_metric_list)
-            #
-            #         fig = plt.figure()
-            #         ax = fig.add_subplot()
-            #         ax.set_title(metric)
-            #         ax.set_xlabel("thresholds")
-            #         ax.set_ylabel(metric)
-            #         ax.plot(plot_metric_x, plot_metric_y)
-            #         self.log_writer.add_figure(metric + "_val_epoch_" + str(epoch), fig, epoch)
-            #
-            #     if "precision" in eval_metrics.keys() and "recall" in eval_metrics.keys():
-            #         fig_pr = plot_pr_curve(eval_metrics["precision"], eval_metrics["recall"])
-            #         self.log_writer.add_figure("pr_curve_val_epoch" + str(epoch), fig_pr, epoch)
-            #
-            #     if "recall" in eval_metrics.keys() and "false_pos_rate" in eval_metrics.keys():
-            #         fig_roc = plot_roc_curve(eval_metrics["recall"], eval_metrics["false_pos_rate"])
-            #         self.log_writer.add_figure("roc_curve_val_epoch" + str(epoch), fig_roc, epoch)
+            # self.train_logger.add_graph(net.model, inputs)
+
+            if epoch % self.metrics_calc_freq == 0:
+                for key in self.criterions["criterion_metrics"].keys():
+                    self.criterions["criterion_metrics"][key].metric.log_metric(self.train_logger, "Validation", epoch, categories=self.dataset_category_dict["val_loader"])
+
+            # metrics stuff
 
             self.train_logger.flush()
 
@@ -376,12 +368,16 @@ class Net_trainer():
                 self.save_model(net, best=True)
                 # print("best_loss_score: " + str(loss_sum))
                 tqdm.write("best_loss_score: " + str(loss_sum))
+                self.train_logger.add_text(f"Best Validation Loss Score: {loss_sum}", logging.INFO, epoch)
         if "max" in self.best_eval_mode:
             if loss_sum > self.best_loss_score:
                 self.best_loss_score = loss_sum
                 self.save_model(net, best=True)
                 # print("best_loss_score: " + str(loss_sum))
                 tqdm.write("best_loss_score: " + str(loss_sum))
+                self.train_logger.add_text(f"Best Validation Loss Score: {loss_sum}", logging.INFO, epoch)
+
+        self.train_logger.add_graph(net.model, inputs)
 
     # def epoch_finish(self):
     #

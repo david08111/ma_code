@@ -219,30 +219,30 @@ def pq_compute_custom(output_img, mask_img, pred_data_dict, gt_data_dict, catego
         matched_annotations_list.append((gt_ann, pred_annotations[image_id]))
 
     pq_stat = pq_compute_single_core(matched_annotations_list, output_img, mask_img, categories)
+    return pq_stat
+    # metrics = [("All", None), ("Things", True), ("Stuff", False)]
+    # results = {}
+    # for name, isthing in metrics:
+    #     results[name], per_class_results = pq_stat.pq_average(categories, isthing=isthing)
+    #     # if name == 'All':
+    #     # results['per_class'] = per_class_results
+    #     results[name + '_per_class'] = per_class_results
+    # # print("{:10s}| {:>5s}  {:>5s}  {:>5s} {:>5s}".format("", "PQ", "SQ", "RQ", "N"))
+    # # print("-" * (10 + 7 * 4))
+    #
+    # # for name, _isthing in metrics:
+    # #     print("{:10s}| {:5.1f}  {:5.1f}  {:5.1f} {:5d}".format(
+    # #         name,
+    # #         100 * results[name]['pq'],
+    # #         100 * results[name]['sq'],
+    # #         100 * results[name]['rq'],
+    # #         results[name]['n'])
+    # #     )
+    #
+    # t_delta = time.time() - start_time
+    # # print("Time elapsed: {:0.2f} seconds".format(t_delta))
 
-    metrics = [("All", None), ("Things", True), ("Stuff", False)]
-    results = {}
-    for name, isthing in metrics:
-        results[name], per_class_results = pq_stat.pq_average(categories, isthing=isthing)
-        # if name == 'All':
-        # results['per_class'] = per_class_results
-        results[name + '_per_class'] = per_class_results
-    # print("{:10s}| {:>5s}  {:>5s}  {:>5s} {:>5s}".format("", "PQ", "SQ", "RQ", "N"))
-    # print("-" * (10 + 7 * 4))
-
-    # for name, _isthing in metrics:
-    #     print("{:10s}| {:5.1f}  {:5.1f}  {:5.1f} {:5d}".format(
-    #         name,
-    #         100 * results[name]['pq'],
-    #         100 * results[name]['sq'],
-    #         100 * results[name]['rq'],
-    #         results[name]['n'])
-    #     )
-
-    t_delta = time.time() - start_time
-    print("Time elapsed: {:0.2f} seconds".format(t_delta))
-
-    return results
+    # return results
 
 
 if __name__ == "__main__":

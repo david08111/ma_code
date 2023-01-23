@@ -23,6 +23,8 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
     num_log_img_and_mask_counter = 0
     num_log_embedds_counter = 0
 
+    graph_logged = False
+
     def __init__(self, name, save_path, img_log_freq=10, num_log_img=20, embedd_log_freq=10, num_log_embedds=1, wandb_config=None, hyperparams_dict={}, embedding_max_sample_size=5000, sampler=None):
         if not os.path.isdir(save_path):
             os.makedirs(save_path, exist_ok=True)
@@ -55,7 +57,7 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
             if not isinstance(flattened_dict[key], int) or not isinstance(flattened_dict[key], float) or not isinstance(flattened_dict[key], str) or not isinstance(flattened_dict[key], bool) or not isinstance(flattened_dict[key], torch.Tensor):
                 flattened_dict[key] = str(flattened_dict[key])
 
-        self.tb_logger.add_hparams(flattened_dict, {"test": 1})
+        # self.tb_logger.add_hparams(flattened_dict, {"test": 1})
 
         wandb_path = os.path.join(save_path, name + "_wandb")
         if not os.path.isdir(wandb_path):
@@ -77,7 +79,8 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
 
         self.tb_logger.add_scalar(name, value, epoch)
 
-        wandb.log({name: value}, step=epoch)
+        wandb.log({name: value,
+                   "Epoch": epoch}, commit=True)
 
 
     def add_image(self, name, img, annotations_data, epoch):
@@ -286,10 +289,15 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
     def add_figure(self):
         raise NameError("Not implemented yet!")
 
-    def add_graph(self, model, inputs):
-        self.tb_logger.add_graph(model, input_to_model=inputs)
+    def add_graph(self, model, inputs=None):
+        if not self.graph_logged:
+            if inputs != None:
+                self.tb_logger.add_graph(model, input_to_model=inputs)
+            # self.tb_logger.add_graph(model, inputs)
 
-        wandb.watch(model, log="all", log_graph=True)
+            wandb.watch(model, log="all", log_graph=True)
+
+            self.graph_logged = True
 
     def add_hyperparams(self):
         raise NameError("Not implemented yet!")
@@ -308,3 +316,30 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
 
     def wandb_add_graph(self, model, loss):
         wandb.watch(model, criterion=loss, log="all", log_graph=True)
+
+    def img_needed_for_loging(self, epoch):
+        """
+        Wether there is an image needed for logging
+        Args:
+            epoch:
+
+        Returns:
+
+        """
+        if self.last_epoch_embedd != epoch:
+            self.last_epoch_embedd = epoch
+            self.num_log_embedds_counter = 0
+
+        if self.last_epoch_img != epoch:
+            self.last_epoch_img = epoch
+            self.num_log_img_and_mask_counter = 0
+
+        if epoch % self.img_log_freq == 0 and self.num_log_img_and_mask_counter < self.num_log_img and epoch % self.embedd_log_freq == 0 and self.num_log_embedds_counter < self.num_log_embedds:
+            return True
+        else:
+            return False
+
+    def reset_img_emb_counter(self):
+        self.num_log_img_and_mask_counter = 0
+        self.num_log_embedds_counter = 0
+        self.num_log_img_counter = 0

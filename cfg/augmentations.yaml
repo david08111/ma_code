@@ -7,8 +7,8 @@ transformations: # potentially more settings available but standard ones preffer
     translate_percent: [0, 0.1]
     rotate: [-2, 2]
   randomcrop:   ## input arguments handled by
-    height: 256
-    width: 512
+    height: 128
+    width: 256
     p: 0.2
   coarse_dropout:
     max_holes: 3
@@ -18,16 +18,16 @@ transformations: # potentially more settings available but standard ones preffer
     fill_value: 0
     mask_fill_value: 0
     p: 0.05
-  elastictransform:
-    p: 0.05
+#  elastictransform:
+#    p: 0.05
   horizontalflip:
     p: 0.5
   pixeldropout:
     dropout_prob: 0.01
     mask_drop_value: 0
     p: 0.05
-  advancedblur:
-    p: 0.05
+#  advancedblur:
+#    p: 0.05
   colorjitter:
     brightness: 0.1
     contrast: 0.1
@@ -35,8 +35,8 @@ transformations: # potentially more settings available but standard ones preffer
     hue: 0.1
     p: 0.05
   downscale:
-    scale_min: 0.2
-    scale_max: 0.2
+    scale_min: 0.6
+    scale_max: 0.9
     p: 0.05
   emboss:
     alpha: [0.1, 0.4]

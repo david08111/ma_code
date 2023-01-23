@@ -4,6 +4,7 @@ import torch.nn.modules as nn_modules
 import torch.nn.functional as F
 import numpy as np
 import sys
+import logging
 from .metrics_new import pq_compute_custom, PQStat
 
 
@@ -127,10 +128,9 @@ class Panoptic_Quality(nn.Module):
         self.metric_tmp = PQStat()
         self.metric = None
 
-    def forward(self, output_img, mask_img, *args, **kwargs):
-
-
-        pass        # implement averaging over batch
+    def reset(self):
+        self.metric_tmp = PQStat()
+        self.metric = None
 
     def forward(self, output_img, mask_img, pred_data_dict, gt_data_dict, categories, *args, **kwargs):
 
@@ -144,14 +144,66 @@ class Panoptic_Quality(nn.Module):
         # implement averaging over batch
 
     def process_end_batch(self, *args, **kwargs):
+
+        if all(x == kwargs["categories"][0] for x in kwargs["categories"]):
+            categories_dict = kwargs["categories"][0]
+        else:
+            raise ValueError("Implementation doesnt support multiple dataset category associations!") # conversion to unified categories should work
+
         metrics = [("All", None), ("Things", True), ("Stuff", False)]
         results = {}
         for name, isthing in metrics:
-            results[name], per_class_results = self.metric_tmp.pq_average(kwargs["categories"], isthing=isthing)
-            # if name == 'All':
-            results[name + '_per_class'] = per_class_results
+            results[name], per_class_results = self.metric_tmp.pq_average(categories_dict, isthing=isthing)
+            if name == 'All':
+                results["per_class"] = per_class_results
+            # results[name + '_per_class'] = per_class_results
+
 
         self.metric = results
+
+    def log_metric(self, logger, name, epoch, *args, **kwargs):
+        if "categories" in kwargs:
+            if all(x == kwargs["categories"][0] for x in kwargs["categories"]):
+                categories_dict = kwargs["categories"][0]
+            else:
+                raise ValueError(
+                    "Implementation doesnt support multiple dataset category associations!")  # conversion to unified categories should work
+        else:
+            categories_dict = None
+
+        for group_name in self.metric.keys():
+            if "per_class" in group_name:
+                for cat_id in self.metric[group_name].keys():
+
+                    for metric_name in self.metric[group_name][cat_id].keys():
+                        if categories_dict:
+                            cat_id_name = categories_dict[cat_id]["name"]
+                        else:
+                            cat_id_name = cat_id
+                        if metric_name == "pq":
+                            metric_display_name = "Panoptic Quality"
+                        elif metric_name == "sq":
+                            metric_display_name = "Segmentation Quality"
+                        elif metric_name == "rq":
+                            metric_display_name = "Recognition Quality"
+                        else:
+                            continue
+                        caption = f"{name} - {metric_display_name} - {cat_id_name}"
+                        logger.add_text(f"{caption} - {self.metric[group_name][cat_id][metric_name]}", logging.INFO, epoch)
+                        logger.add_scalar(f"{caption}", self.metric[group_name][cat_id][metric_name], epoch)
+            else:
+                for metric_name in self.metric[group_name].keys():
+                    if metric_name == "pq":
+                        metric_display_name = "Panoptic Quality"
+                    elif metric_name == "sq":
+                        metric_display_name = "Segmentation Quality"
+                    elif metric_name == "rq":
+                        metric_display_name = "Recognition Quality"
+                    else:
+                        continue
+                    caption = f"{name} - {metric_display_name} - {group_name}"
+                    logger.add_text(f"{caption} - {self.metric[group_name][metric_name]}", logging.INFO, epoch)
+                    logger.add_scalar(f"{caption}", self.metric[group_name][metric_name], epoch)
 
 
 
@@ -220,9 +272,12 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
     def forward(self, outputs, masks, annotations_data):
         device = outputs.get_device()
 
-        radius_loss = 0
+        # radius_loss = 0
+        #
+        # similarity_loss = 0
+        radius_loss = torch.tensor(0, dtype=torch.float32, device=device)
 
-        similarity_loss = 0
+        similarity_loss = torch.tensor(0, dtype=torch.float32, device=device)
 
         unique_cat_ids = torch.unique(masks[:, 1, :, :])  # skip segment_id=0
 
@@ -310,16 +365,19 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
                             similarity_loss += dot_product_embeddings_mean
                             similarity_loss_counter += 1
 
-        radius_loss /= radius_loss_counter
+        if radius_loss_counter > 0:
+            radius_loss /= radius_loss_counter
 
-        similarity_loss /= similarity_loss_counter
+        if similarity_loss_counter > 0:
+            similarity_loss /= similarity_loss_counter
 
 
-
+        loss_items_dict = {"Radius Loss": radius_loss.item(),
+                           "Similarity Loss": similarity_loss.item()}
 
         total_loss = self.radius_loss_weight * radius_loss + self.similarity_loss_weight * similarity_loss
 
-        return total_loss
+        return total_loss, loss_items_dict
 
 class Weighted_sum(nn.Module):
     def __init__(self, loss_list, weights_list):

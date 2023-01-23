@@ -1,5 +1,4 @@
 from .data_loader import Img_DataLoader, Mask_DataLoader
-from .data_loader import Bbox3D_DataLoader
 from .augmentations import Augmentation_Wrapper
 import torch
 import torchvision
@@ -280,10 +279,11 @@ class Cityscapes_Dataset(Base_Dataset_COCO):
         annotation = self.annotations_data[img_id]
 
         # annotation_mask = Img_DataLoader.load_image(os.path.join(self.segment_masks_path, annotation["file_name"]), self.img_width, self.img_height)
-
+        # if "file_name" not in annotation.keys():
+        #     print(annotation)
         annotation_mask = Mask_DataLoader.load_image(os.path.join(self.segment_masks_path, annotation["file_name"]), self.img_width, self.img_height, self.segment_info["annotations"][idx], self.categories_id)
 
-        annotation.pop("file_name")
+        # annotation.pop("file_name")
         # plt.imshow(img)
         # plt.show()
         # plt.imshow(annotation_mask)

@@ -18,6 +18,8 @@ def train_net(config_path, verbose):
     # config_dict = config(os.path.abspath(config_path))
     config_dict = create_config_dict(os.path.abspath(config_path))
 
+    # config_dict["training"]["num_epochs"] = 1
+
     # dataset_config_dict = create_dataset_config(os.path.abspath(config_dict["data"]["datasets_file_path"]), config_dict)
     # dataset_config_dict = config(os.path.abspath(config_dict["data"]["datasets_file_path"]))
 
@@ -63,4 +65,10 @@ if __name__ == "__main__":
                         help="Path to configuration file")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
+
     train_net(args.config, args.verbose)
+
+    # import cProfile
+    # config_dict = args.config
+    #
+    # cProfile.run('train_net(config_dict, args.verbose)')

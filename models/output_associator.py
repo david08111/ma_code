@@ -46,7 +46,7 @@ class MultiSphereAssociator():
         # id_gen = IdGenerator(dataset_category)
 
         annotations = []
-        segm_info = []
+        # segm_info = []
 
         batch_size = outputs.shape[0]
 
@@ -66,9 +66,14 @@ class MultiSphereAssociator():
         # outputs_emb_radius = torch.rand(outputs_emb_radius.shape, device=device)
         #
         # outputs_emb_radius = torch.mul(outputs_emb_radius, 22)
+        # for k in range(len(annotations_data)):
+        #     if annotations_data[k]["image_id"] == 'frankfurt_000001_038418':
+        #         print("Test")
         # ## TESTDATA!!
         for b in range(batch_size):
             outputs_emb_radius_tmp = outputs_emb_radius[b, ...]
+
+            segm_info = []
 
             id_gen = IdGenerator(dataset_category) # for every image unique - (reduces amount of to distinguisable colors)
 
@@ -141,7 +146,7 @@ class MultiSphereAssociator():
                     cluster_ids = np.unique(clustered_embedding_indices)
 
                     # remove noisy samples (labelled with -1)
-                    if cluster_ids[0] == -1:
+                    if cluster_ids[0] == -1 and cluster_ids.shape[0] > 1:
                         cluster_ids = cluster_ids[1:]
 
                     for j in cluster_ids:
@@ -181,12 +186,24 @@ class MultiSphereAssociator():
                         #
                         # area = int(area.item())
 
+                        test = np.unique(final_output_mask[b])
+
                         segm_info.append({"id": int(segment_id),
                                           "category_id": int(cat_id),
                                           "area": area})
                         # "area": area,
                         # "bbox": bbox,
                         # "iscrowd": is_crowd})
+
+            # test_segment_id_info = sorted([foo["id"] for foo in segm_info])
+            # test_segment_id_mask = np.zeros(final_output_mask.shape, dtype=np.uint32)
+            # final_output_mask_float = final_output_mask.detach().cpu().numpy().astype(np.uint32)
+            # test_segment_id_mask = final_output_mask_float[b, 0, ...] + 256 * final_output_mask_float[b, 1, ...] + 256 * 256 * final_output_mask_float[b, 2, ...]
+            # test2 = np.unique(test_segment_id_mask).tolist()
+            # test_3 = test2[1:]
+            #
+            # if test_segment_id_info != test_3:
+            #     print("FAIL")
 
             annotations.append({'image_id': annotations_data[b]["image_id"],
                                 # 'file_name': file_name,
