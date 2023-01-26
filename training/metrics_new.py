@@ -92,13 +92,45 @@ def pq_compute_single_core(annotation_set, output_img, mask_img, categories):
         # pan_pred = rgb2id(pan_pred)
         pan_pred = rgb2id(output_img[i, ...])
         pan_pred = pan_pred.astype(np.uint32)
+        # ####
+        # from matplotlib import pyplot as plt
+        # plt.imshow(pan_pred)
+        # plt.show()
+        # plt.imshow(pan_gt)
+        # plt.show()
+        # pred_mask_true = pan_pred == 8405120
+        # gt_mask_true = pan_gt == 8405120
+        # and_mask_true = np.bitwise_and(gt_mask_true, pred_mask_true)
+        #
+        # pred_vis = np.zeros(pan_pred.shape)
+        # pred_vis[pred_mask_true] = 1
+        #
+        # gt_vis = np.zeros(pan_pred.shape)
+        # gt_vis[gt_mask_true] = 1
+        #
+        # and_vis= np.zeros(pan_pred.shape)
+        # and_vis[and_mask_true] = 1
+        #
+        # plt.imshow(pred_vis)
+        # plt.show()
+        #
+        # plt.imshow(gt_vis)
+        # plt.show()
+        #
+        # plt.imshow(and_vis)
+        # plt.show()
+        # ####
+        #
+        # # for el in annotation_set[i][0]["segments_info"]:
+        # #     test = el["id"]
 
         gt_segms = {el['id']: el for el in annotation_set[i][0]['segments_info']}
         pred_segms = {el['id']: el for el in annotation_set[i][1]['segments_info']}
 
         # predicted segments area calculation + prediction sanity checks
         pred_labels_set = set(el['id'] for el in annotation_set[i][1]['segments_info'])
-        test = np.unique(pan_pred, return_counts=True)
+        # test = np.unique(pan_pred)
+        # test2 = np.unique(pan_gt)
         labels, labels_cnt = np.unique(pan_pred, return_counts=True)
         for label, label_cnt in zip(labels, labels_cnt):
             if label not in pred_segms:
@@ -126,6 +158,8 @@ def pq_compute_single_core(annotation_set, output_img, mask_img, categories):
         pred_matched = set()
         for label_tuple, intersection in gt_pred_map.items():
             gt_label, pred_label = label_tuple
+            # if gt_label == 8405120 and pred_label == 8405120:
+            #     print("TEST")
             if gt_label not in gt_segms:
                 continue
             if pred_label not in pred_segms:
@@ -135,6 +169,7 @@ def pq_compute_single_core(annotation_set, output_img, mask_img, categories):
             if gt_segms[gt_label]['category_id'] != pred_segms[pred_label]['category_id']:
                 continue
 
+            # test = gt_pred_map.get((VOID, pred_label), 0)
             union = pred_segms[pred_label]['area'] + gt_segms[gt_label]['area'] - intersection - gt_pred_map.get((VOID, pred_label), 0)
             iou = intersection / union
             if iou > 0.5:

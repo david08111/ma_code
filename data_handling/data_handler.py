@@ -231,7 +231,7 @@ class Base_Dataset_COCO(ABC):
 
         annotation = self.annotations_data[img_id]
 
-        annotation_mask = Img_DataLoader.load_image(os.path.join(self.segment_masks_path, annotation["file_name"]), self.img_width, self.img_height, self.segment_info["annotations"][idx], self.categories_id)
+        annotation_mask = Mask_DataLoader.load_image(os.path.join(self.segment_masks_path, annotation["file_name"]), self.img_width, self.img_height, self.segment_info["annotations"][idx], self.categories_id)
 
         data_item_dict = {"img": img,
                           "annotation_mask": annotation_mask,

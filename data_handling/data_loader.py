@@ -154,10 +154,19 @@ class Mask_DataLoader():
         # try:
 
         img_load = cv2.imread(file_path)
+
+        # plt.imshow(img_load)
+        # plt.show()
+
         img_load = cv2.cvtColor(img_load, cv2.COLOR_BGR2RGB)
+
+        # plt.imshow(img_load)
+        # plt.show()
 
         img_load = cv2.resize(img_load, (width, height), interpolation=cv2.INTER_NEAREST) # interpolation method important otherwise interpolation artifacts as new segments !
 
+        # plt.imshow(img_load)
+        # plt.show()
         # aug_crop_aspect_ratio = iaa.CenterPadToAspectRatio(1)
         # img_data = aug_crop_aspect_ratio(images=[img_load])[0]
 
@@ -203,6 +212,8 @@ class Mask_DataLoader():
         # plt.imshow(mask_data)
         # plt.show()
         # return img_data, file_name
+        # plt.imshow(mask_data[:, :, 0])
+        # plt.show()
         return mask_data
 # deprecated
     @staticmethod

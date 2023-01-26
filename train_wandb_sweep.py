@@ -14,6 +14,39 @@ from torch.utils.data import DataLoader
 # def update_config_dict(config_dict_base, config_dict_update):
 #     pass
 
+def set_unique_save_log_paths(config_dict, args_list_update):
+    for elem in args_list_update:
+        key_val_split = elem.split("=")
+
+        val = key_val_split[1]
+        key = key_val_split[0]
+
+        # remove "--" from front
+
+        key = key[2:]
+
+        # split by nested dictionary elems
+
+        nested_dict_level_list = key.split(".")
+
+        for name in nested_dict_level_list[:-1]:
+            config_dict["training"]["save_path"] = os.path.join(config_dict["training"]["save_path"], name)
+            config_dict["logging"]["save_path"] = os.path.join(config_dict["logging"]["save_path"],
+                                                                name[-1] + "_" + val)
+
+        config_dict["training"]["save_path"] = os.path.join(config_dict["training"]["save_path"], nested_dict_level_list[-1] + "_" + val)
+        config_dict["logging"]["save_path"] = os.path.join(config_dict["logging"]["save_path"],
+                                                           nested_dict_level_list[-1] + "_" + val)
+        # run_name = nested_dict_level_list[0]
+        # for name in nested_dict_level_list[1:]:
+        #     run_name += "_" + name
+        #
+        # run_name += "_" + val
+
+        # config_dict["training"]["save_path"] = os.path.join(config_dict["training"]["save_path"], run_name)
+
+    return config_dict
+
 def add_nested_dict_from_list(config_dict, nested_dict_level_list, val):
     if len(nested_dict_level_list) > 1:
         key = nested_dict_level_list.pop(0)
@@ -141,6 +174,8 @@ if __name__ == "__main__":
     # config_dict_sweep = convert_arg_list2config_dict(sys.argv[2:])
 
     config_dict_sweep = convert_arg_list2config_dict(config_dict_base, arglist_update)
+
+    config_dict_final = set_unique_save_log_paths(config_dict_sweep, arglist_update)
 
     train_net(config_dict_sweep)
 

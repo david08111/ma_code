@@ -193,7 +193,7 @@ class Net_trainer():
                     self.criterions["criterion_metrics"][key].metric(final_outputs, masks, final_output_segmentation_data, annotations_data, categories=self.dataset_category_dict["train_loader"])
 
                 if self.train_logger:
-                    self.train_logger.add_image_and_mask("Panoptic Masks", inputs, masks, annotations_data,
+                    self.train_logger.add_image_and_mask(["Train", "Panoptic Masks"], inputs, masks, annotations_data,
                                                          final_outputs,
                                                          final_output_segmentation_data, epoch,
                                                          self.dataset_category_dict["train_loader"])
@@ -215,7 +215,7 @@ class Net_trainer():
                 #                                      self.dataset_category_dict["train_loader"])
                 # self.train_logger.add_image("TEST IMAGE", test_output_masks, final_output_segmentation_data, epoch)
 
-                self.train_logger.add_embeddings("Output-Embeddings-Train", output_embeddings=outputs, data_pts_names=masks, annotations_data=annotations_data, epoch=epoch)
+                self.train_logger.add_embeddings(["Train", "Output-Embeddings"], output_embeddings=outputs, data_pts_names=masks, annotations_data=annotations_data, epoch=epoch)
                 # self.train_logger.flush()
 
         loss_sum /= len(data["train_loader"])
@@ -234,18 +234,18 @@ class Net_trainer():
             self.train_logger.add_text(f"Finalizing Train Step", logging.INFO, epoch)
             self.train_logger.add_text(f"Train Loss {loss_sum}", logging.INFO, epoch)
             self.train_logger.add_text(f"Learning Rate {self.optimizer.optimizer.param_groups[0]['lr']}", logging.INFO, epoch)
-            self.train_logger.add_scalar(f"Train Loss {self.criterions['criterion_train'].loss_type}", loss_sum, epoch)
-            self.train_logger.add_scalar(f"Learning Rate", self.optimizer.optimizer.param_groups[0]['lr'], epoch)
+            self.train_logger.add_scalar(["Train", "Loss", self.criterions['criterion_train'].loss_type], loss_sum, epoch)
+            self.train_logger.add_scalar("Learning Rate", self.optimizer.optimizer.param_groups[0]['lr'], epoch)
 
             for key in loss_items_sum.keys():
                 self.train_logger.add_text(f"Train Loss Item {key} - {loss_items_sum[key]}", logging.INFO, epoch)
-                self.train_logger.add_scalar(f"Train Loss Item {key}", loss_items_sum[key],
+                self.train_logger.add_scalar(["Train", "Loss", f"Item - {key}"], loss_items_sum[key],
                                              epoch)
 
 
             if epoch % self.metrics_calc_freq == 0:
                 for key in self.criterions["criterion_metrics"].keys():
-                    self.criterions["criterion_metrics"][key].metric.log_metric(self.train_logger, "Train", epoch, categories=self.dataset_category_dict["train_loader"])
+                    self.criterions["criterion_metrics"][key].metric.log_metric(self.train_logger, ["Train", "Metric"], epoch, categories=self.dataset_category_dict["train_loader"])
 
             # metrics stuff
 
@@ -297,7 +297,7 @@ class Net_trainer():
                                                                          categories=self.dataset_category_dict[
                                                                              "val_loader"])
                     if self.train_logger:
-                        self.train_logger.add_image_and_mask("Panoptic Masks", inputs, masks, annotations_data,
+                        self.train_logger.add_image_and_mask(["Val", "Panoptic Masks"], inputs, masks, annotations_data,
                                                              final_outputs,
                                                              final_output_segmentation_data, epoch,
                                                              self.dataset_category_dict["val_loader"])
@@ -320,7 +320,7 @@ class Net_trainer():
                     # self.train_logger.add_image("TEST IMAGE", test_output_masks, final_output_segmentation_data, epoch)
                     # self.train_logger.add_graph(net.model, inputs)
 
-                    self.train_logger.add_embeddings("Output-Embeddings-Validation", output_embeddings=outputs,
+                    self.train_logger.add_embeddings(["Val", "Output-Embeddings"], output_embeddings=outputs,
                                                      data_pts_names=masks, annotations_data=annotations_data,
                                                      epoch=epoch)
                     # self.train_logger.flush()
@@ -342,21 +342,21 @@ class Net_trainer():
 
         if self.train_logger:
             self.train_logger.add_text(f"Finalizing Val Step", logging.INFO, epoch)
-            self.train_logger.add_text(f"Validation Loss {loss_sum}", logging.INFO, epoch)
+            self.train_logger.add_text(f"Val Loss - {loss_sum}", logging.INFO, epoch)
             # self.train_logger.add_text(f"Learning Rate {self.optimizer.optimizer.param_groups[0]['lr']}", logging.INFO,
             #                            epoch)
-            self.train_logger.add_scalar(f"Validation Loss {self.criterions['criterion_val'].loss_type}", loss_sum, epoch)
+            self.train_logger.add_scalar(["Val", "Loss", self.criterions['criterion_val'].loss_type], loss_sum, epoch)
             # self.train_logger.add_scalar(f"Learning Rate", self.optimizer.optimizer.param_groups[0]['lr'], epoch)
             for key in loss_items_sum.keys():
                 self.train_logger.add_text(f"Val Loss Item {key} - {loss_items_sum[key]}", logging.INFO, epoch)
-                self.train_logger.add_scalar(f"Val Loss Item {key}", loss_items_sum[key],
+                self.train_logger.add_scalar(["Val", "Loss", f"Item - {key}"], loss_items_sum[key],
                                              epoch)
 
             # self.train_logger.add_graph(net.model, inputs)
 
             if epoch % self.metrics_calc_freq == 0:
                 for key in self.criterions["criterion_metrics"].keys():
-                    self.criterions["criterion_metrics"][key].metric.log_metric(self.train_logger, "Validation", epoch, categories=self.dataset_category_dict["val_loader"])
+                    self.criterions["criterion_metrics"][key].metric.log_metric(self.train_logger, ["Val", "Metric"], epoch, categories=self.dataset_category_dict["val_loader"])
 
             # metrics stuff
 
@@ -388,7 +388,10 @@ class Net_trainer():
     def train(self, net, device, data):
 
         self.set_categories(data)
-
+        # # remove !
+        # ######
+        # self.start_epoch -= 1
+        # #########
         for epoch in range(self.start_epoch, self.max_epoch + 1):
             tqdm.write("Epoch " + str(epoch) + ":")
             tqdm.write("-" * 50)

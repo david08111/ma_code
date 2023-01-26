@@ -5,6 +5,7 @@ import torch
 import numpy as np
 import wandb
 from utils.sampler import SamplerWrapper
+from copy import deepcopy
 
 from functools import reduce
 from torch.utils.tensorboard import SummaryWriter
@@ -14,6 +15,16 @@ def flatten_dict(dd, separator ='.', prefix =''):
              for kk, vv in dd.items()
              for k, v in flatten_dict(vv, separator, kk).items()
              } if isinstance(dd, dict) else { prefix : dd }
+
+def create_nested_dict_from_list(config_dict, name_list, value, epoch):
+    if len(name_list) > 1:
+        elem = name_list.pop(0)
+        config_dict[elem] = {}
+        create_nested_dict_from_list(config_dict[elem], name_list, value, epoch)
+    else:
+        elem = name_list.pop(0)
+        config_dict[elem] = value
+        config_dict["Epoch"] = epoch
 
 class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
 
@@ -25,7 +36,7 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
 
     graph_logged = False
 
-    def __init__(self, name, save_path, img_log_freq=10, num_log_img=20, embedd_log_freq=10, num_log_embedds=1, wandb_config=None, hyperparams_dict={}, embedding_max_sample_size=5000, sampler=None):
+    def __init__(self, name, save_path, img_log_freq=10, num_log_img=10, embedd_log_freq=10, num_log_embedds=1, wandb_config=None, hyperparams_dict={}, embedding_max_sample_size=5000, sampler=None):
         if not os.path.isdir(save_path):
             os.makedirs(save_path, exist_ok=True)
 
@@ -67,20 +78,94 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
         else:
             wandb.init(project="MA", entity="david08111", dir=wandb_path, config=hyperparams_dict)
 
+    def get_caption_from_name(self, name):
+        if isinstance(name, list):
+            caption_name = name[0]
+            for elem in name[1:]:
+                caption_name = f"{caption_name} - {elem}"
+            return caption_name
+        else:
+            return name
 
+    def get_wandb_section_from_name(self, name):
+        if isinstance(name, list):
+            caption_name = name[0]
+            for elem in name[1:]:
+                caption_name = f"{caption_name}/{elem}"
+            return caption_name
+        else:
+            return name
+
+    def get_log_msg_from_name_epoch_value(self, name, value, epoch):
+        if isinstance(name, list):
+            caption_name = name[0]
+            for elem in name[1:]:
+                caption_name = f"{caption_name} - {elem}"
+            log_msg = f"Epoch {epoch} - {caption_name} - {value}"
+            return log_msg
+        else:
+            return f"Epoch {epoch} - {name} - {value}"
+
+    def get_log_dict_from_name_epoch_value(self, name, value, epoch):
+        if isinstance(name, list):
+            wandb_log_dict = {}
+            name_list_tmp = list(name)
+            create_nested_dict_from_list(wandb_log_dict, name_list_tmp, value, epoch)
+            return wandb_log_dict
+        else:
+            {name: value,
+             "Epoch": epoch}
 
     def add_text(self, text, level, epoch):
+        text = self.get_caption_from_name(text)
+
         log_msg = f"Epoch {epoch} - {text}"
         logging.log(level, log_msg)
 
+    # def add_scalar_string_scalar(self, name, value, epoch):
+    #
+    #     log_msg = f"Epoch {epoch} - {name} - {value}"
+    #     logging.log(logging.INFO, log_msg)
+    #
+    #     self.tb_logger.add_scalar(name, value, epoch)
+    #
+    #     wandb.log({name: value,
+    #                "Epoch": epoch}, commit=True)
+    #
+    # def add_scalar_list_scalar(self, name_list, value, epoch):
+    #     caption_name = self.get_caption_from_name_list(name_list)
+    #     log_msg = f"Epoch {epoch} - {caption_name} - {value}"
+    #     logging.log(logging.INFO, log_msg)
+    #
+    #     self.tb_logger.add_scalar(caption_name, value, epoch)
+    #
+    #     wandb_log_dict = self.get_nested_dict_from_name_list_and_value(name_list, value, epoch)
+    #     # wandb.log({name: value,
+    #     #            "Epoch": epoch}, commit=True)
+    #     wandb.log(wandb_log_dict, commit=True)
+
     def add_scalar(self, name, value, epoch):
-        log_msg = f"Epoch {epoch} - {name} - {value}"
+        # if isinstance(name, str) and not isinstance(value, dict):
+        #     self.add_scalar_string_scalar(name, value, epoch)
+        #
+        # elif isinstance(name, list) and not isinstance(value, dict):
+        #     self.add_scalar_list_scalar(name, value, epoch)
+        # else:
+        #     raise NameError("Not implemented yet!")
+        log_msg = self.get_log_msg_from_name_epoch_value(name, value, epoch)
         logging.log(logging.INFO, log_msg)
 
-        self.tb_logger.add_scalar(name, value, epoch)
+        caption_name = self.get_caption_from_name(name)
+        self.tb_logger.add_scalar(caption_name, value, epoch)
 
-        wandb.log({name: value,
+        wandb_caption = self.get_wandb_section_from_name(name)
+
+        # wandb_log_dict = self.get_log_dict_from_name_epoch_value(name, value, epoch)
+        wandb.log({wandb_caption: value,
                    "Epoch": epoch}, commit=True)
+        # wandb.log(wandb_log_dict, commit=True)
+
+
 
 
     def add_image(self, name, img, annotations_data, epoch):
@@ -90,10 +175,21 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
 
         if epoch % self.img_log_freq == 0 and self.num_log_img_counter < self.num_log_img:
             for b in range(img.shape[0]):
-                log_msg = f"Epoch {epoch} - {name} - {annotations_data[b]['image_id']} - LOGGED"
+                name_tmp = deepcopy(name)
+                if isinstance(name, list):
+                    name_tmp.append(annotations_data[b]['image_id'])
+                else:
+                    name_tmp += " - " + annotations_data[b]['image_id']
+
+                caption = self.get_caption_from_name(name_tmp)
+
+                log_msg = f"Epoch {epoch} - {caption} - LOGGED"
                 logging.log(logging.DEBUG, log_msg)
 
-                caption = f"Epoch {epoch} - {name} - {annotations_data[b]['image_id']}"
+                # caption = f"Epoch {epoch} - {name} - {annotations_data[b]['image_id']}"
+
+
+                # caption = self.get_caption_from_name(name)
 
                 # self.tb_logger.add_images(caption, img[b], epoch, dataformats="NHWC")
                 self.tb_logger.add_images(caption, img[b], epoch, dataformats="HWC")
@@ -101,7 +197,10 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
                 # caption = f"Epoch {epoch} - {name} - {annotations_data['image_id']}"
                 wandb_img = wandb.Image(img[b], caption=caption)
 
-                wandb.log({name: wandb_img})
+                wandb_caption = self.get_wandb_section_from_name(name)
+
+                wandb.log({wandb_caption: wandb_img,
+                           "Epoch": epoch})
 
                 self.num_log_img_counter += 1
                 # self.tb_logger.add_image
@@ -134,12 +233,23 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
         if epoch % self.img_log_freq == 0 and self.num_log_img_and_mask_counter < self.num_log_img:
             for b in range(img.shape[0]):
             # for b in range(1):
-                log_msg = f"Epoch {epoch} - {name} - {annotations_data_gt[b]['image_id']} - LOGGED"
-                logging.log(logging.DEBUG, log_msg)
 
-                caption_img = f"Epoch {epoch} - {name} - IMG - {annotations_data_gt[b]['image_id']}"
-                caption_mask_gt = f"Epoch {epoch} - {name} - MASK GT - {annotations_data_gt[b]['image_id']}"
-                caption_mask_pred = f"Epoch {epoch} - {name} - MASK PRED - {annotations_data_gt[b]['image_id']}"
+                name_tmp = deepcopy(name)
+                if isinstance(name, list):
+                    name_tmp.append(annotations_data_gt[b]['image_id'])
+                else:
+                    name_tmp += " - " + annotations_data_gt[b]['image_id']
+
+                caption = self.get_caption_from_name(name_tmp)
+
+                log_msg_gt = f"Epoch {epoch} - {caption} - LOGGED"
+
+                # log_msg = f"Epoch {epoch} - {name} - {annotations_data_gt[b]['image_id']} - LOGGED"
+                logging.log(logging.DEBUG, log_msg_gt)
+
+                caption_img = f"{caption} - IMG"
+                caption_mask_gt = f"{caption} - MASK GT"
+                caption_mask_pred = f"{caption} - MASK PRED"
                 self.tb_logger.add_images(caption_img, img[b], epoch, dataformats="CHW")
                 self.tb_logger.add_images(caption_mask_gt, mask_gt[b], epoch, dataformats="CHW")
                 self.tb_logger.add_images(caption_mask_pred, mask_output[b], epoch, dataformats="CHW")
@@ -163,7 +273,10 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
                 segmentid_mask_gt_final = np.zeros(segmentid_mask_gt.shape, dtype=np.uint8)
                 segmentid_mask_pred_final = np.zeros(segmentid_mask_pred.shape, dtype=np.uint8)
 
-                caption = f"Epoch {epoch} - {name} - {annotations_data_gt[b]['image_id']}"
+                #######################
+
+
+                # caption = f"Epoch {epoch} - {name} - {annotations_data_gt[b]['image_id']}"
                 class_labels_gt = {}
                 class_labels_pred = {}
                 if categories_dict:
@@ -194,8 +307,9 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
                         if segment_uint8_counter > 255:
                             self.wandb_alert("Overflow",
                                              "Panoptic Segmentation mask calculation (for visualization) exceeds the class amount of 255! - visualization might be wrong")
-
-                wandb_img = wandb.Image(img[b], caption=caption, masks={
+                ##############
+                wandb_img_caption = f"Epoch {epoch} - {caption}"
+                wandb_img = wandb.Image(img[b], caption=wandb_img_caption, masks={
                     "ground_truth": {
                         "mask_data": segmentid_mask_gt_final,
                         "class_labels": class_labels_gt
@@ -206,7 +320,10 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
                     }
                 })
 
-                wandb.log({f"IMG {b}": wandb_img})
+                wandb_caption = self.get_wandb_section_from_name(name_tmp)
+
+                wandb.log({wandb_caption: wandb_img,
+                           "Epoch": epoch})
 
                 self.num_log_img_and_mask_counter += 1
 
@@ -231,6 +348,8 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
         for b in range(output_embeddings.shape[0]):
 
             if epoch % self.embedd_log_freq == 0 and self.num_log_embedds_counter < self.num_log_embedds:
+                name = self.get_caption_from_name(name)
+
                 if annotations_data:
                     caption_segment_ids = f"{name} - Segment Ids - {annotations_data[b]['image_id']}"
                     caption_cat_ids = f"{name} - Category Ids - {annotations_data[b]['image_id']}"
@@ -282,7 +401,8 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
                     columns = column_names
                 wandb_table = wandb.Table(columns=columns, data=final_embedding)
 
-                wandb.log({caption_segment_ids: wandb_table}, step=epoch)
+                wandb.log({f"Epoch {epoch} - {caption_segment_ids}": wandb_table,
+                           "Epoch": epoch})
 
                 self.num_log_embedds_counter += 1
 

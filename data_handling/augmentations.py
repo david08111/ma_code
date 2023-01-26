@@ -74,7 +74,7 @@ class Augmentation_Wrapper():
 
         # plt.imshow(img)
         # plt.show()
-        # plt.imshow(mask)
+        # plt.imshow(mask[:, :, 0])
         # plt.show()
 
         # test = data_dict["annotations_data"]["image_id"].strip()
@@ -88,7 +88,30 @@ class Augmentation_Wrapper():
         transformed = self.transform(image=img, mask=mask)
 
         data_dict["img"] = transformed["image"]
-        data_dict["annotation_mask"] = transformed["mask"]
+        data_dict["annotation_mask"] = transformed["mask"]#.astype(np.uint32)
+
+        # plt.imshow(data_dict["annotation_mask"][:, :, 0])
+        # plt.show()
+
+        annotations_data_segments_dict_tmp = {el["id"]: el for el in data_dict["annotations_data"]["segments_info"]}
+        # annotations_data_segments_dict_tmp = {}
+        # for i in range(len(data_dict["annotations_data"]["segments_info"])):
+        #     el = data_dict["annotations_data"]["segments_info"][i]
+        #     annotations_data_segments_dict_tmp[el["id"]] = el
+        #     annotations_data_segments_dict_tmp[el["id"]]["indx"] = i
+            # calculate bbox and area for segments new
+        segment_ids, segment_id_areas = np.unique(data_dict["annotation_mask"][:, :, 0], return_counts=True)
+        for segment_id, segment_id_area in zip(segment_ids, segment_id_areas):
+            if segment_id == 0:
+                continue
+            if segment_id in annotations_data_segments_dict_tmp.keys():
+                annotations_data_segments_dict_tmp[segment_id]["area"] = segment_id_area
+                annotations_data_segments_dict_tmp[segment_id].pop("bbox")
+                # segment_id_indx = annotations_data_segments_dict_tmp[segment_id][indx]
+                # data_dict["annotations_data"]["segments_info"][segment_id_indx]["area"] = segment_id_area
+                # data_dict["annotations_data"]["segments_info"][segment_id_indx].pop("bbox")
+            else:
+                raise ValueError("Segment ID " + segment_id + " not in " + data_dict["annotations_data"]["image_id"])
 
         # plt.imshow(transformed["image"])
         # plt.show()

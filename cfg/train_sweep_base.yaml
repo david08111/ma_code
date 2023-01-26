@@ -35,7 +35,7 @@ scheduler:
   cooldown: 20
 
 training:
-  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/test_run5"
+  save_path: "/work/scratch/dziuba/ma_code_runs/trainings"
 #  gpu_ids: [0]
   save_freq: 10
   metrics_calc_freq: 10
@@ -89,7 +89,7 @@ loss:
 
 data:
   datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref.yaml"
-  batch_size: 32
+  batch_size: 64
   num_workers: 4
   img_width: 256
   img_height: 128
@@ -97,7 +97,7 @@ data:
 
 logging:
   name: "LOG"
-  save_path: "/work/scratch/dziuba/ma_code_runs/logs/test_run5"
+  save_path: "/work/scratch/dziuba/ma_code_runs/logs"
   num_log_img: 5
   wandb_config:
     project: "MA"
