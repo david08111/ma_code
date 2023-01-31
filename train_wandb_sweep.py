@@ -29,21 +29,23 @@ def set_unique_save_log_paths(config_dict, args_list_update):
 
         nested_dict_level_list = key.split(".")
 
-        for name in nested_dict_level_list[:-1]:
-            config_dict["training"]["save_path"] = os.path.join(config_dict["training"]["save_path"], name)
-            config_dict["logging"]["save_path"] = os.path.join(config_dict["logging"]["save_path"],
-                                                                name[-1] + "_" + val)
+        # for name in nested_dict_level_list[:-1]:
+        #     config_dict["training"]["save_path"] = os.path.join(config_dict["training"]["save_path"], name)
+        #     config_dict["logging"]["save_path"] = os.path.join(config_dict["logging"]["save_path"],
+        #                                                         name[-1] + "_" + val)
 
-        config_dict["training"]["save_path"] = os.path.join(config_dict["training"]["save_path"], nested_dict_level_list[-1] + "_" + val)
-        config_dict["logging"]["save_path"] = os.path.join(config_dict["logging"]["save_path"],
-                                                           nested_dict_level_list[-1] + "_" + val)
-        # run_name = nested_dict_level_list[0]
-        # for name in nested_dict_level_list[1:]:
-        #     run_name += "_" + name
-        #
-        # run_name += "_" + val
+        # config_dict["training"]["save_path"] = os.path.join(config_dict["training"]["save_path"], nested_dict_level_list[-1] + "_" + val)
+        # config_dict["logging"]["save_path"] = os.path.join(config_dict["logging"]["save_path"],
+        #                                                    nested_dict_level_list[-1] + "_" + val)
 
-        # config_dict["training"]["save_path"] = os.path.join(config_dict["training"]["save_path"], run_name)
+        run_name = nested_dict_level_list[0]
+        for name in nested_dict_level_list[1:]:
+            run_name += "-" + name
+
+        run_name += "-" + val
+
+        config_dict["training"]["save_path"] = os.path.join(config_dict["training"]["save_path"], run_name)
+        config_dict["logging"]["save_path"] = os.path.join(config_dict["logging"]["save_path"], run_name)
 
     return config_dict
 

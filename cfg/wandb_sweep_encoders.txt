@@ -1,0 +1,52 @@
+command:
+  - /home/students/dziuba/miniconda3/envs/ma_code/bin/python
+  - ${program}
+  - --config
+  - /work/scratch/dziuba/repos/ma_code/cfg/train_sweep_base.yaml
+  - ${args}
+method: grid
+metric:
+  goal: minimize
+  name: Val/Loss/spherical_contrast_panoptic
+parameters:
+  model.model_architecture.model_architecture_name:
+    distribution: categorical
+    values:
+      - unet_resnet50
+      - unet_resnet101
+      - unet_resnext50_32x4d
+      - unet_resnext101_32x8d
+      - unet_resnext101_32x16d
+      - unet_timm-resnest50d
+      - unet_timm-resnest101e
+      - unet_timm-res2net50_26w_4s
+      - unet_timm-res2net101_26w_4s
+      - unet_timm-regnetx_064
+      - unet_timm-regnetx_320
+      - unet_timm-regnety_064
+      - unet_timm-regnety_320
+      - unet_timm-gernet_s
+      - unet_timm-gernet_m
+      - unet_se_resnet50
+      - unet_se_resnet101
+      - unet_se_resnext50_32x4d
+      - unet_se_resnext101_32x4d
+      - unet_timm-skresnext50_32x4d
+      - unet_densenet169
+      - unet_densenet161
+      - unet_densenet201
+      - unet_inceptionresnetv2
+      - unet_inceptionv4
+      - unet_xception
+      - unet_efficientnet-b4
+      - unet_efficientnet-b7
+      - unet_timm-efficientnet-b4
+      - unet_timm-efficientnet-b7
+      - unet_dpn92
+      - unet_dpn98
+      - unet_dpn131
+      - unet_vgg13_bn
+      - unet_vgg19_bn
+      - unet_mit_b2
+      - unet_mit_b5
+program: train_wandb_sweep.py

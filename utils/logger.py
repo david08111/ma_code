@@ -36,7 +36,7 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
 
     graph_logged = False
 
-    def __init__(self, name, save_path, img_log_freq=10, num_log_img=10, embedd_log_freq=10, num_log_embedds=1, wandb_config=None, hyperparams_dict={}, embedding_max_sample_size=5000, sampler=None):
+    def __init__(self, name, save_path, log_graph=False, img_log_freq=10, num_log_img=10, embedd_log_freq=10, num_log_embedds=1, wandb_config=None, hyperparams_dict={}, embedding_max_sample_size=5000, sampler=None):
         if not os.path.isdir(save_path):
             os.makedirs(save_path, exist_ok=True)
 
@@ -46,6 +46,8 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
 
         self.embedd_log_freq = embedd_log_freq
         self.embedding_max_sample_size = embedding_max_sample_size
+
+        self.log_graph = log_graph
 
         if sampler:
             sampler_name = list(sampler.keys())[0]
@@ -410,7 +412,7 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
         raise NameError("Not implemented yet!")
 
     def add_graph(self, model, inputs=None):
-        if not self.graph_logged:
+        if not self.graph_logged and self.log_graph:
             if inputs != None:
                 self.tb_logger.add_graph(model, input_to_model=inputs)
             # self.tb_logger.add_graph(model, inputs)

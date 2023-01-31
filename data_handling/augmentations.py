@@ -106,7 +106,7 @@ class Augmentation_Wrapper():
                 continue
             if segment_id in annotations_data_segments_dict_tmp.keys():
                 annotations_data_segments_dict_tmp[segment_id]["area"] = segment_id_area
-                annotations_data_segments_dict_tmp[segment_id].pop("bbox")
+                annotations_data_segments_dict_tmp[segment_id].pop("bbox", None)
                 # segment_id_indx = annotations_data_segments_dict_tmp[segment_id][indx]
                 # data_dict["annotations_data"]["segments_info"][segment_id_indx]["area"] = segment_id_area
                 # data_dict["annotations_data"]["segments_info"][segment_id_indx].pop("bbox")

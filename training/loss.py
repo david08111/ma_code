@@ -28,6 +28,10 @@ class Loss_Wrapper():
             return Discriminative_contrast_loss(**loss_config)
         elif loss_type == "spherical_contrast_panoptic":
             return Panoptic_spherical_contrastive_loss(**loss_config)
+        elif loss_type == "reverse_huber":
+            return ReverseHuberLoss(**loss_config)
+        elif loss_type == "reverse_huber_threshold":
+            return ReverseHuberLoss_threshold(**loss_config)
         elif loss_type == "spherical_contrast_panoptic_area_normed":
             return Panoptic_spherical_contrastive_loss_area_normed(**loss_config)
         ## deprecated
@@ -258,14 +262,16 @@ class Discriminative_contrast_loss(nn.Module):
         raise ValueError("Discriminative_contrast_loss not implemented yet!")
 
 class Panoptic_spherical_contrastive_loss(nn.Module):
-    def __init__(self, cat_id_radius_order_map_list, radius_diff_dist=1, radius_start_val=0, cosine_emb_loss_margin=0, radius_loss_weight=0.5, similarity_loss_weight=0.5, hypsph_radius_map_list=None):
+    def __init__(self, cat_id_radius_order_map_list, loss_radius=None, radius_diff_dist=1, radius_start_val=0, cosine_emb_loss_margin=0, radius_loss_weight=0.5, similarity_loss_weight=0.5, hypsph_radius_map_list=None):
         super().__init__()
         self.cat_id_radius_order_map_list = cat_id_radius_order_map_list
         self.radius_diff_dist = radius_diff_dist
         self.radius_start_val = radius_start_val
         self.cosine_emb_loss_margin = cosine_emb_loss_margin
 
-        self.mse_loss_radius = torch.nn.MSELoss()
+        if not loss_radius:
+            loss_radius = {"mse": {}}
+        self.loss_radius = Loss_Wrapper(loss_radius).loss
         # self.cosine_embedding_inst_discr_loss = torch.nn.CosineEmbeddingLoss(margin=cosine_emb_loss_margin, size_average=False, reduce=False, reduction=False)
 
         self.radius_loss_weight = radius_loss_weight
@@ -273,8 +279,11 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
 
         if hypsph_radius_map_list:
             self.hypsph_radius_map_list = hypsph_radius_map_list
+            diff_list_tmp = [abs(hypsph_radius_map_list[i] - hypsph_radius_map_list[i+1]) for i in range(len(hypsph_radius_map_list) - 1)]
+            self.mean_radius_diff = sum(diff_list_tmp) / len(diff_list_tmp)
         else:
             self.hypsph_radius_map_list = list(range(self.radius_start_val, self.radius_start_val + self.radius_diff_dist * len(self.cat_id_radius_order_map_list), self.radius_diff_dist))
+            self.mean_radius_diff = self.radius_diff_dist
 
     def forward(self, outputs, masks, annotations_data):
         device = outputs.get_device()
@@ -296,8 +305,8 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
         outputs_reordered_tmp = torch.permute(outputs, (1, 0, 2, 3))
         masks_reordered_tmp = torch.permute(masks, (1, 0, 2, 3))
 
-        # mse_loss_radius = torch.nn.MSELoss(size_average=False, reduce=False, reduction=None)
-        mse_loss_radius = self.mse_loss_radius
+        # loss_radius = torch.nn.MSELoss(size_average=False, reduce=False, reduction=None)
+        loss_radius = self.loss_radius
         # cosine_embedding_inst_discr_loss = self.cosine_embedding_inst_discr_loss
 
         radius_loss_counter = 0
@@ -316,8 +325,17 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
                 outputs_cat_id_embeddings_norm = torch.norm(outputs_cat_id_embeddings, 2, dim=0)
                 # radius_sqared_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), radius*radius, device=device)
                 radius_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), radius, device=device, dtype=torch.float32)
-                loss_tmp = mse_loss_radius(outputs_cat_id_embeddings_norm, radius_loss_part)
+                # test_mse_loss_mean = torch.nn.MSELoss()
+                # test = test_mse_loss(outputs_cat_id_embeddings_norm, radius_loss_part).detach().cpu().numpy()
+                # test2 = np.mean(test)
+                # test_mean = test_mse_loss_mean(outputs_cat_id_embeddings_norm, radius_loss_part).detach().cpu().numpy()
+                loss_tmp = loss_radius(outputs_cat_id_embeddings_norm, radius_loss_part)
                 radius_loss += loss_tmp
+
+                abs_error = torch.abs(outputs_cat_id_embeddings_norm - radius_loss_part).detach().cpu().numpy()
+
+                # abs_error_histogram = np.histogram(abs_error, bins=np.arange())
+
 
                 loss_items_dict[f"Radius Loss/Part - Cat ID {unique_cat_id}"] = loss_tmp.item()
                 # loss_item_radius_key_tmp = f"Radius Loss - Cat ID {unique_cat_id}"
@@ -428,180 +446,7 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
 
         return total_loss, loss_items_dict
 
-class Panoptic_spherical_contrastive_loss_area_normed(nn.Module):
-    def __init__(self, cat_id_radius_order_map_list, radius_diff_dist=1, radius_start_val=0, cosine_emb_loss_margin=0, radius_loss_weight=0.5, similarity_loss_weight=0.5, hypsph_radius_map_list=None):
-        super().__init__()
-        self.cat_id_radius_order_map_list = cat_id_radius_order_map_list
-        self.radius_diff_dist = radius_diff_dist
-        self.radius_start_val = radius_start_val
-        self.cosine_emb_loss_margin = cosine_emb_loss_margin
 
-        self.mse_loss_radius = torch.nn.MSELoss()
-        # self.cosine_embedding_inst_discr_loss = torch.nn.CosineEmbeddingLoss(margin=cosine_emb_loss_margin, size_average=False, reduce=False, reduction=False)
-
-        self.radius_loss_weight = radius_loss_weight
-        self.similarity_loss_weight = similarity_loss_weight
-
-        if hypsph_radius_map_list:
-            self.hypsph_radius_map_list = hypsph_radius_map_list
-        else:
-            self.hypsph_radius_map_list = list(range(self.radius_start_val, self.radius_start_val + self.radius_diff_dist * len(self.cat_id_radius_order_map_list), self.radius_diff_dist))
-
-    def forward(self, outputs, masks, annotations_data):
-        device = outputs.get_device()
-
-        loss_items_dict = {}
-
-        # radius_loss = 0
-        #
-        # similarity_loss = 0
-        radius_loss = torch.tensor(0, dtype=torch.float32, device=device)
-
-        similarity_loss = torch.tensor(0, dtype=torch.float32, device=device)
-
-        unique_cat_ids = torch.unique(masks[:, 1, :, :])  # skip segment_id=0
-
-        # for unique_cat_id in unique_cat_ids[1:]:
-        #     loss_items_dict[f"Radius Loss - Cat ID {unique_cat_id}"] = 0
-
-        outputs_reordered_tmp = torch.permute(outputs, (1, 0, 2, 3))
-        masks_reordered_tmp = torch.permute(masks, (1, 0, 2, 3))
-
-        # mse_loss_radius = torch.nn.MSELoss(size_average=False, reduce=False, reduction=None)
-        mse_loss_radius = self.mse_loss_radius
-        # cosine_embedding_inst_discr_loss = self.cosine_embedding_inst_discr_loss
-
-        radius_loss_counter = 0
-        similarity_loss_counter = 0
-
-        if self.radius_loss_weight > float_precision_thr:
-            for unique_cat_id in unique_cat_ids[1:]:  # skip 0
-                unique_cat_id = int(unique_cat_id.item())
-                cat_id_radius_indx = self.cat_id_radius_order_map_list.index(unique_cat_id)
-                radius = self.hypsph_radius_map_list[cat_id_radius_indx]
-                outputs_indx_select = masks[:, 1, :, :] == unique_cat_id
-                outputs_cat_id_embeddings = outputs_reordered_tmp[:, outputs_indx_select]
-                area = outputs_cat_id_embeddings.shape[1]
-                # test = outputs_cat_id_embeddings[:, 0].detach().cpu().numpy()
-                # test2 = np.multiply(test, test.T)
-                # test3 = np.sum(test2)
-                outputs_cat_id_embeddings_norm = torch.norm(outputs_cat_id_embeddings, 2, dim=0)
-                # radius_sqared_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), radius*radius, device=device)
-                radius_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), radius, device=device, dtype=torch.float32)
-                loss_tmp = mse_loss_radius(outputs_cat_id_embeddings_norm, radius_loss_part)
-                loss_tmp /= area
-                radius_loss += loss_tmp
-
-                loss_items_dict[f"Radius Loss/Part - Cat ID {unique_cat_id}"] = loss_tmp.item()
-                # loss_item_radius_key_tmp = f"Radius Loss - Cat ID {unique_cat_id}"
-                # if loss_item_radius_key_tmp not in loss_items_dict:
-                #     loss_items_dict[f"Radius Loss - Cat ID {unique_cat_id}"] = loss_tmp.item()
-                # else:
-                #     loss_items_dict[f"Radius Loss - Cat ID {unique_cat_id}"] += loss_tmp.item()
-                radius_loss_counter += 1
-
-        # test = outputs.shape[0]
-        radius_loss_counter *= outputs.shape[0] #take batch size into account for normalization
-
-        ### instance discrimination part
-
-        # reduce amount of masks with "isthing" part from masks - B x H x W x (segment_id, cat_id, isthing)
-
-        batch_size = masks.shape[0]
-
-        if self.similarity_loss_weight > float_precision_thr:
-            for b in range(batch_size):
-
-                inst_discr_masks = masks_reordered_tmp[:2, b, masks[b, 2, :, :] == True]
-
-                unique_cat_ids = torch.unique(inst_discr_masks[1, :])
-
-                for unique_cat_id in unique_cat_ids:
-                    segments_id_data = masks_reordered_tmp[:, b, masks_reordered_tmp[1, b, :, :] == unique_cat_id]
-
-                    unique_segment_ids = torch.unique(segments_id_data[0, :])
-
-                    segment_id_embeddings_dict = {}
-                    # gather embeddings and calculate cosineembeddingloss with itself
-
-                    for unique_segment_id in unique_segment_ids:
-                        segment_id_embeddings = outputs[b, :, masks_reordered_tmp[0, b, :, :] == unique_segment_id]
-                        segment_id_embeddings_dict[unique_segment_id.item()] = segment_id_embeddings
-                        area = segment_id_embeddings.shape[1]
-
-                        segment_id_embeddings = torch.div(segment_id_embeddings, torch.norm(segment_id_embeddings, 2, dim=0) + 0.000001)
-                        dot_product_embeddings = torch.matmul(torch.transpose(segment_id_embeddings, 0, 1), segment_id_embeddings)
-
-                        dot_product_embeddings = torch.triu(dot_product_embeddings)
-                        # test = dot_product_embeddings.nonzero(as_tuple=True)
-                        dot_product_embeddings = dot_product_embeddings[dot_product_embeddings.nonzero(as_tuple=True)]
-                        dot_product_embeddings = torch.mul(dot_product_embeddings, -1)
-                        dot_product_embeddings = torch.add(dot_product_embeddings, 1)
-                        dot_product_embeddings_mean = torch.mean(dot_product_embeddings)
-                        dot_product_embeddings_mean /= area
-                        similarity_loss += dot_product_embeddings_mean
-                        similarity_loss_counter += 1
-
-                        loss_item_similarity_key_tmp = f"Similarity Loss/Part - Cat ID - {unique_cat_id} - Similar"
-                        if loss_item_similarity_key_tmp not in loss_items_dict:
-                            loss_items_dict[loss_item_similarity_key_tmp] = similarity_loss.item()
-                        else:
-                            loss_items_dict[loss_item_similarity_key_tmp] += similarity_loss.item()
-
-
-                    for i in range(unique_segment_ids.shape[0] - 1):
-                        unique_segment_id = unique_segment_ids[i]
-                        for neg_unique_segment_id in unique_segment_ids[i+1:]:
-
-                            curr_embedding = segment_id_embeddings_dict[unique_segment_id.item()]
-                            neg_embedding = segment_id_embeddings_dict[neg_unique_segment_id.item()]
-
-                            curr_embedding = torch.div(curr_embedding, torch.norm(curr_embedding, 2, dim=0) + 0.000001)
-                            neg_embedding = torch.div(neg_embedding, torch.norm(neg_embedding, 2, dim=0) + 0.000001)
-
-                            dot_product_embeddings = torch.matmul(torch.transpose(curr_embedding, 0, 1), neg_embedding)
-
-                            dot_product_embeddings = torch.triu(dot_product_embeddings)
-                            # test = dot_product_embeddings.nonzero(as_tuple=True)
-                            dot_product_embeddings = dot_product_embeddings[dot_product_embeddings.nonzero(as_tuple=True)]
-                            dot_product_embeddings = torch.add(dot_product_embeddings, -self.cosine_emb_loss_margin)
-                            dot_product_embeddings = torch.clamp(dot_product_embeddings, min=0)
-                            dot_product_embeddings_mean = torch.mean(dot_product_embeddings)
-
-                            similarity_loss += dot_product_embeddings_mean
-                            similarity_loss_counter += 1
-
-                            loss_item_similarity_key_tmp = f"Similarity Loss/Part - Cat ID - {unique_cat_id} - Disimilar"
-                            if loss_item_similarity_key_tmp not in loss_items_dict:
-                                loss_items_dict[loss_item_similarity_key_tmp] = similarity_loss.item()
-                            else:
-                                loss_items_dict[loss_item_similarity_key_tmp] += similarity_loss.item()
-
-
-        if radius_loss_counter > 0:
-            radius_loss /= radius_loss_counter
-
-            for key in loss_items_dict.keys():
-                if "Radius" in key:
-                    loss_items_dict[key] /= radius_loss_counter
-
-        if similarity_loss_counter > 0:
-            similarity_loss /= similarity_loss_counter
-
-            for key in loss_items_dict.keys():
-                if "Similarity" in key:
-                    loss_items_dict[key] /= similarity_loss_counter
-
-
-
-        # loss_items_dict = {"Radius Loss": radius_loss.item(),
-        #                    "Similarity Loss": similarity_loss.item()}
-        loss_items_dict["Radius Loss"] = radius_loss.item()
-        loss_items_dict["Similarity Loss"] = similarity_loss.item()
-
-        total_loss = self.radius_loss_weight * radius_loss + self.similarity_loss_weight * similarity_loss
-
-        return total_loss, loss_items_dict
 
 class Weighted_sum(nn.Module):
     def __init__(self, loss_list, weights_list):
@@ -640,231 +485,27 @@ class Average_sum(nn.Module):
 
         return total_loss / len(self.loss_list)
 
-## from here on deprecated - maybe still usefull
-class BBox3d_custom(nn.Module):
-    def __init__(self, focal_length, img_size, weight_list):
-        super(BBox3d_custom, self).__init__()
-        self.focal_length = focal_length
-        self.image_size = img_size
-        self.weight_list = weight_list
+class ReverseHuberLoss(nn.Module):
+    def __init__(self, factor=0.2):
+        super().__init__()
+        self.factor = factor
 
-    def forward(self, outputs, labels, *args, **kwargs):
-        return self.weight_list[0] * torch.mean((outputs[:, 0] - labels[:, 1] / self.focal_length) ** 2) + \
-                       self.weight_list[1] * torch.mean(((outputs[:, 1] - 0.5) * 180 - labels[:, 2]) ** 2) + \
-                       self.weight_list[2] * torch.mean((outputs[:, 2] * self.image_size - labels[:, 3]) ** 2) + \
-                       self.weight_list[3] * torch.mean((outputs[:, 3] * self.image_size - labels[:, 4]) ** 2) + \
-                       self.weight_list[4] * torch.mean(
-                (outputs[:, 4] * outputs[:, 0] * self.image_size - labels[:, 5]) ** 2) + \
-                       self.weight_list[5] * torch.mean(
-                (outputs[:, 5] * outputs[:, 0] * self.image_size - labels[:, 6]) ** 2) + \
-                       self.weight_list[6] * torch.mean(
-                (outputs[:, 6] * outputs[:, 0] * self.image_size - labels[:, 7]) ** 2)
+    def forward(self, output, target):
+        absdiff = torch.abs(output - target)
+        C = self.factor * torch.max(absdiff).item()
+        # test = torch.where(absdiff < C, absdiff, (absdiff * absdiff + C * C) / (2 * C))
+        return torch.mean(torch.where(absdiff < C, absdiff, (absdiff * absdiff + C * C) / (2 * C)))
 
-class MSE_relCamDepth(nn.Module):
-    def __init__(self, focal_length):
-        super(MSE_relCamDepth, self).__init__()
-        self.focal_length = focal_length
+class ReverseHuberLoss_threshold(nn.Module):
+    def __init__(self, threshold=1):
+        super().__init__()
+        self.threshold = threshold
 
-    def forward(self, outputs, labels, *args, **kwargs):
-        return torch.mean((outputs[:, 0] - labels[:, 1] / self.focal_length) ** 2)
+    def forward(self, output, target):
+        absdiff = torch.abs(output - target)
+        return torch.mean(torch.where(absdiff < self.threshold, absdiff, (absdiff * absdiff)))
 
-class MSE_relYaw(nn.Module):
-    def __init__(self):
-        super(MSE_relYaw, self).__init__()
-
-    def forward(self, outputs, labels, *args, **kwargs):
-        return torch.mean(((outputs[:, 1] - 0.5) * 180 - labels[:, 2]) ** 2)
-
-
-class MSE_objPT(nn.Module):
-    def __init__(self, image_size):
-        super(MSE_objPT, self).__init__()
-        self.image_size = image_size
-
-    def forward(self, outputs, labels, *args, **kwargs):
-        return torch.mean((outputs[:, 2] * self.image_size - labels[:, 3]) ** 2) \
-            + torch.mean((outputs[:, 3] * self.image_size - labels[:, 4]) ** 2)
-
-class MSE_objPT_X(nn.Module):
-    def __init__(self, image_size):
-        super(MSE_objPT_X, self).__init__()
-        self.image_size = image_size
-
-    def forward(self, outputs, labels, *args, **kwargs):
-        return torch.mean((outputs[:, 2] * self.image_size - labels[:, 3]) ** 2)
-
-class MSE_objPT_Y(nn.Module):
-    def __init__(self, image_size):
-        super(MSE_objPT_Y, self).__init__()
-        self.image_size = image_size
-
-    def forward(self, outputs, labels, *args, **kwargs):
-        return torch.mean((outputs[:, 3] * self.image_size - labels[:, 4]) ** 2)
-
-class MSE_BBoxShape(nn.Module):
-    def __init__(self, image_size):
-        super(MSE_BBoxShape, self).__init__()
-        self.image_size = image_size
-
-    def forward(self, outputs, labels, *args, **kwargs):
-        return torch.mean((outputs[:, 4] * outputs[:, 0] * self.image_size - labels[:, 5]) ** 2) \
-            + torch.mean((outputs[:, 5] * outputs[:, 0] * self.image_size - labels[:, 6]) ** 2) \
-            + torch.mean((outputs[:, 6] * outputs[:, 0] * self.image_size - labels[:, 7]) ** 2)
-
-class MSE_BBoxShape_1(nn.Module):
-    def __init__(self, image_size):
-        super(MSE_BBoxShape_1, self).__init__()
-        self.image_size = image_size
-
-    def forward(self, outputs, labels, *args, **kwargs):
-        return torch.mean((outputs[:, 4] * outputs[:, 0] * self.image_size - labels[:, 5]) ** 2)
-
-class MSE_BBoxShape_2(nn.Module):
-    def __init__(self, image_size):
-        super(MSE_BBoxShape_2, self).__init__()
-        self.image_size = image_size
-
-    def forward(self, outputs, labels, *args, **kwargs):
-        return torch.mean((outputs[:, 5] * outputs[:, 0] * self.image_size - labels[:, 6]) ** 2)
-
-class MSE_BBoxShape_3(nn.Module):
-    def __init__(self, image_size):
-        super(MSE_BBoxShape_3, self).__init__()
-        self.image_size = image_size
-
-    def forward(self, outputs, labels, *args, **kwargs):
-        return torch.mean((outputs[:, 6] * outputs[:, 0] * self.image_size - labels[:, 7]) ** 2)
-
-class BBox3D_IOU(nn.Module):
-    def __init__(self, focal_length):
-        super(BBox3D_IOU, self).__init__()
-        self.focal_length = focal_length
-
-    def forward(self, outputs, labels, *args, **kwargs):
-
-        def get_ct_pt_in_world(pred_data, crop_pos, cam_config, cam_extrinsic, input_image_size):
-            crop_resize_factor = []
-
-            crop_resize_factor.append((crop_pos[1] - crop_pos[0]) / cam_config["width"])
-            crop_resize_factor.append((crop_pos[3] - crop_pos[2]) / cam_config["height"])
-
-            proj_3dmean_pt = np.array([pred_data[2] * crop_resize_factor[0], pred_data[3] * crop_resize_factor[1]])
-
-            proj_3d_mean_pt_full_img = proj_3dmean_pt
-            proj_3d_mean_pt_full_img[0] += crop_pos[0]
-            proj_3d_mean_pt_full_img[1] += crop_pos[2]
-
-            reldepth = pred_data[0]
-            relyaw = pred_data[1]  # negative due to definition
-            bbox_shape = np.array([pred_data[4], pred_data[5], pred_data[6]])  # in blender coordsystem (z looking up)
-
-            cam_intrinsics = cam_config["camera_intrinsic"]
-            # cam_intrinsics[0, 2] = cam_config["width"] / 2
-            # cam_intrinsics[1, 2] = cam_config["height"] / 2
-
-            bbox3d_mean_pt_camcoord = np.dot(np.linalg.inv(cam_intrinsics),
-                                             np.array([proj_3d_mean_pt_full_img[0], proj_3d_mean_pt_full_img[1], 1]))
-
-            bbox3d_mean_pt_camcoord *= reldepth
-
-            bbox3d_mean_pt_camcoord = np.dot(cam_extrinsic, np.append(bbox3d_mean_pt_camcoord, 1))[:3]
-            return bbox3d_mean_pt_camcoord
-
-        bbox3d_iou_sum = 0
-        labels_tmp = labels.detach().cpu().numpy()[:, 1:]
-        outputs_tmp = kwargs["final_outputs"].detach().cpu().numpy()
-        crop_pos_list = kwargs["crop_pos_list"]
-        cam_config = kwargs["cam_config"]
-        cam_extr_list = kwargs["cam_extr_list"]
-        input_img_size = kwargs["input_img_size"]
-
-        for i in range(outputs.shape[0]):
-            pred_mean_pt_world = get_ct_pt_in_world(outputs_tmp[i], crop_pos_list[i], cam_config, cam_extr_list[i], input_img_size)
-            pred_relyaw_rad = outputs_tmp[i, 1] * np.pi / 180
-            pred_bbox_shape = (outputs_tmp[i, 4], outputs_tmp[i, 5], outputs_tmp[i, 6])
-
-            pred_box_dict = {"mean_pt_world": pred_mean_pt_world,
-                             "relyaw_rad": pred_relyaw_rad,
-                             "bbox_shape": pred_bbox_shape}
-
-            labels_mean_pt_world = get_ct_pt_in_world(labels_tmp[i], crop_pos_list[i], cam_config, cam_extr_list[i], input_img_size)
-            labels_relyaw_rad = labels_tmp[i, 1] * np.pi / 180
-            labels_bbox_shape = (labels_tmp[i, 4], labels_tmp[i, 5], labels_tmp[i, 6])
-
-            labels_box_dict = {"mean_pt_world": labels_mean_pt_world,
-                             "relyaw_rad": labels_relyaw_rad,
-                             "bbox_shape": labels_bbox_shape}
-
-            bbox3d_iou, bev_iou = calc_bbox3d_iou(pred_box_dict, labels_box_dict)
-            bbox3d_iou_sum += bbox3d_iou
-
-        return bbox3d_iou_sum / outputs.shape[0]
-
-class BBox3D_BEV_IOU(nn.Module):
-    def __init__(self, focal_length):
-        super(BBox3D_BEV_IOU, self).__init__()
-        self.focal_length = focal_length
-
-    def forward(self, outputs, labels, *args, **kwargs):
-
-        def get_ct_pt_in_world(pred_data, crop_pos, cam_config, cam_extrinsic, input_image_size):
-            crop_resize_factor = []
-
-            crop_resize_factor.append((crop_pos[1] - crop_pos[0]) / cam_config["width"])
-            crop_resize_factor.append((crop_pos[3] - crop_pos[2]) / cam_config["height"])
-
-            proj_3dmean_pt = np.array([pred_data[2] * crop_resize_factor[0], pred_data[3] * crop_resize_factor[1]])
-
-            proj_3d_mean_pt_full_img = proj_3dmean_pt
-            proj_3d_mean_pt_full_img[0] += crop_pos[0]
-            proj_3d_mean_pt_full_img[1] += crop_pos[2]
-
-            reldepth = pred_data[0]
-            # relyaw = pred_data[1]  # negative due to definition
-            # bbox_shape = np.array([pred_data[4], pred_data[5], pred_data[6]])  # in blender coordsystem (z looking up)
-
-            cam_intrinsics = cam_config["camera_intrinsic"]
-            # cam_intrinsics[0, 2] = cam_config["width"] / 2
-            # cam_intrinsics[1, 2] = cam_config["height"] / 2
-
-            bbox3d_mean_pt_camcoord = np.dot(np.linalg.inv(cam_intrinsics),
-                                             np.array([proj_3d_mean_pt_full_img[0], proj_3d_mean_pt_full_img[1], 1]))
-
-            bbox3d_mean_pt_camcoord *= reldepth
-
-            bbox3d_mean_pt_camcoord = np.dot(cam_extrinsic, np.append(bbox3d_mean_pt_camcoord, 1))[:3]
-            return bbox3d_mean_pt_camcoord
-
-        bbox3d_bev_iou_sum = 0
-        labels_tmp = labels.detach().cpu().numpy()[:, 1:]
-        outputs_tmp = kwargs["final_outputs"].detach().cpu().numpy()
-        crop_pos_list = kwargs["crop_pos_list"]
-        cam_config = kwargs["cam_config"]
-        cam_extr_list = kwargs["cam_extr_list"]
-        input_img_size = kwargs["input_img_size"]
-
-        for i in range(outputs.shape[0]):
-            pred_mean_pt_world = get_ct_pt_in_world(outputs_tmp[i], crop_pos_list[i], cam_config, cam_extr_list[i], input_img_size)
-            pred_relyaw_rad = outputs_tmp[i, 1] * np.pi / 180
-            pred_bbox_shape = (outputs_tmp[i, 4], outputs_tmp[i, 5], outputs_tmp[i, 6])
-
-            pred_box_dict = {"mean_pt_world": pred_mean_pt_world,
-                             "relyaw_rad": pred_relyaw_rad,
-                             "bbox_shape": pred_bbox_shape}
-
-            labels_mean_pt_world = get_ct_pt_in_world(labels_tmp[i], crop_pos_list[i], cam_config, cam_extr_list[i], input_img_size)
-            labels_relyaw_rad = labels_tmp[i, 1] * np.pi / 180
-            labels_bbox_shape = (labels_tmp[i, 4], labels_tmp[i, 5], labels_tmp[i, 6])
-
-            labels_box_dict = {"mean_pt_world": labels_mean_pt_world,
-                             "relyaw_rad": labels_relyaw_rad,
-                             "bbox_shape": labels_bbox_shape}
-
-            bbox3d_iou, bev_iou = calc_bbox3d_iou(pred_box_dict, labels_box_dict)
-            bbox3d_bev_iou_sum += bev_iou
-
-        return bbox3d_bev_iou_sum / outputs.shape[0]
-
+##################
 class FocalLoss2d(nn.Module):
     def __init__(self, gamma=2, weight=None, size_average=True, ignore_index=255):
         super(FocalLoss2d, self).__init__()

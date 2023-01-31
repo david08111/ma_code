@@ -41,6 +41,10 @@ class Img_DataLoader():
         # try:
 
         img_load = cv2.imread(file_path)
+        # print(file_path)
+        # if img_load is None:
+        #     print("FAIL!")
+        #     print(file_path)
         img_load = cv2.cvtColor(img_load, cv2.COLOR_BGR2RGB)
 
         img_data = cv2.resize(img_load, (width, height))

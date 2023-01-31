@@ -87,8 +87,12 @@ class ModelAssociater():
                             (could be **None** to return logits)
             """
             model_name_split_list = model_name.split("_")
-            model_name_encoder = model_name_split_list[1]
-            model_name_decoder = model_name_split_list[0]
+            model_name_decoder = model_name_split_list.pop(0)
+
+            model_name_encoder = model_name_split_list.pop(0)
+
+            for name in model_name_split_list:
+                model_name_encoder += "_" + name
 
             model_architecture_config_tmp["encoder_name"] = model_name_encoder
             model_architecture_config_tmp["classes"] = model_architecture_config_tmp.pop("embedding_dims")

@@ -168,7 +168,7 @@ class Net_trainer():
             # labels = labels.narrow(3, 0, 1).contiguous()
             # inputs = inputs.permute((0, 3, 2, 1))
 
-            outputs = net.model(inputs)
+            outputs, output_items = net(inputs)
 
 
             # inp = inputs.cpu().numpy()[0, :, :, :]
@@ -272,7 +272,7 @@ class Net_trainer():
                 inputs = inputs.to(device, non_blocking=True)
                 masks = masks.to(device, non_blocking=True)
 
-                outputs = net.model(inputs)
+                outputs, output_items = net(inputs)
 
                 # test = outputs.cpu().numpy()
 
@@ -388,7 +388,7 @@ class Net_trainer():
     def train(self, net, device, data):
 
         self.set_categories(data)
-        # # remove !
+        # # # # remove !
         # ######
         # self.start_epoch -= 1
         # #########

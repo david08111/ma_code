@@ -4,6 +4,7 @@ import torch
 import numpy as np
 from matplotlib import pyplot as plt
 from panopticapi.utils import IdGenerator
+from abc import abstractmethod, ABC
 
 class EmbeddingOutputAssociatorWrapper():
     def __init__(self, name, *args, **kwargs):
@@ -218,16 +219,52 @@ class ClusteringWrapper():
         self.name = name
         self.clusterer = self._set_clusterer_by_name(name, *args, **kwargs)
 
+    # def _set_clusterer_by_name(self, name, *args, **kwargs):
+    #     if name == "identity":
+    #         return IdentityClusterer(**kwargs)
+    #     if name == "dbscan":
+    #         return sklearn.cluster.DBSCAN(**kwargs)
+    #     if name == "mean_shift":
+    #         return sklearn.cluster.MeanShift(**kwargs)
+    #     if name == "optics":
+    #         return sklearn.cluster.OPTICS(**kwargs)
+    #     if name == "hierarchical":
+    #         raise ValueError("Not implemented yet!")
     def _set_clusterer_by_name(self, name, *args, **kwargs):
+        if name == "identity":
+            return IdentityClusterer(**kwargs)
         if name == "dbscan":
-            return sklearn.cluster.DBSCAN(**kwargs)
+            return DBSCANClusterer(kwargs)
         if name == "mean_shift":
-            return sklearn.cluster.MeanShift(**kwargs)
+            return MeanShiftClusterer(kwargs)
         if name == "optics":
-            return sklearn.cluster.OPTICS(**kwargs)
+            return OpticsClusterer(kwargs)
         if name == "hierarchical":
             raise ValueError("Not implemented yet!")
-
+    # def apply_clustering(self, embeddings):
+    #     """
+    #
+    #     Args:
+    #         embeddings: embeddings of shape (n_samples, m_features)
+    #
+    #     Returns:
+    #         indices of clustered embeddings
+    #     """
+    #
+    #     # embeddings = np.array([[1, 1], [1, 2], [2, 1], [5, 5], [6, 5], [3, 1], [2, 1], [6, 6],
+    #     #                            [1.6, 2.2], [3.4, 7.2], [0.4, 0.6], [0.5, 0.5], [1.5, 1.5], [6.5, 6.5],[6, 5], [5, 6]])
+    #     #
+    #     # embeddings = sklearn.datasets.make_circles(n_samples=300, factor=0.5, noise=0.05)[0]
+    #
+    #     clustering = self.clusterer.fit(embeddings)
+    #
+    #     # for i in np.unique(clustering.labels_):
+    #     #
+    #     #     plt.scatter(embeddings[clustering.labels_ == i, 0], embeddings[clustering.labels_ == i, 1], label=i)
+    #     # plt.legend()
+    #     # plt.show()
+    #
+    #     return clustering.labels_
     def apply_clustering(self, embeddings):
         """
 
@@ -238,17 +275,56 @@ class ClusteringWrapper():
             indices of clustered embeddings
         """
 
-        # embeddings = np.array([[1, 1], [1, 2], [2, 1], [5, 5], [6, 5], [3, 1], [2, 1], [6, 6],
-        #                            [1.6, 2.2], [3.4, 7.2], [0.4, 0.6], [0.5, 0.5], [1.5, 1.5], [6.5, 6.5],[6, 5], [5, 6]])
-        #
-        # embeddings = sklearn.datasets.make_circles(n_samples=300, factor=0.5, noise=0.05)[0]
+        clustering_labels = self.clusterer.apply_clustering(embeddings)
 
+        return clustering_labels
+
+class BaseClusterer(ABC):
+    def __init__(self):
+        pass
+
+    @abstractmethod
+    def apply_clustering(self, embeddings):
+        " abstract method"
+
+class DBSCANClusterer(ABC):
+    def __init__(self, config_dict):
+        self.clusterer = sklearn.cluster.DBSCAN(**config_dict)
+
+    def apply_clustering(self, embeddings):
         clustering = self.clusterer.fit(embeddings)
 
-        # for i in np.unique(clustering.labels_):
-        #
-        #     plt.scatter(embeddings[clustering.labels_ == i, 0], embeddings[clustering.labels_ == i, 1], label=i)
-        # plt.legend()
-        # plt.show()
+        return clustering.labels_
+
+
+class MeanShiftClusterer(ABC):
+    def __init__(self, config_dict):
+        self.clusterer = sklearn.cluster.MeanShift(**config_dict)
+
+    def apply_clustering(self, embeddings):
+        clustering = self.clusterer.fit(embeddings)
 
         return clustering.labels_
+
+
+class OpticsClusterer(ABC):
+    def __init__(self, config_dict):
+        self.clusterer = sklearn.cluster.OPTICS(**config_dict)
+
+    def apply_clustering(self, embeddings):
+        clustering = self.clusterer.fit(embeddings)
+
+        return clustering.labels_
+
+class IdentityClusterer(BaseClusterer):
+    def __init__(self):
+        pass
+
+    def apply_clustering(self, embeddings):
+        return np.zeros(embeddings.shape[0])
+
+
+class Visualizer():
+    def __init__(self):
+        pass
+

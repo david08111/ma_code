@@ -1,0 +1,21 @@
+command:
+  - /home/students/dziuba/miniconda3/envs/ma_code/bin/python
+  - ${program}
+  - --config
+  - /work/scratch/dziuba/repos/ma_code/cfg/train_sweep_base.yaml
+  - ${args}
+method: grid
+metric:
+  goal: minimize
+  name: Val/Loss/spherical_contrast_panoptic
+parameters:
+  model.model_architecture.embedding_dims:
+    distribution: categorical
+    values:
+      - 3
+      - 10
+      - 25
+      - 50
+      - 100
+      - 200
+program: train_wandb_sweep.py

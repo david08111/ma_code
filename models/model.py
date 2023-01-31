@@ -29,11 +29,11 @@ class Model(nn.Module):
 
 
     def forward(self, input):
-        output_dict = {}
+        output_item_dict = {}
 
-        output_dict["final_pixel_embeddings"] = self.model.forward(input)
+        output = self.model.forward(input)
 
-        return output_dict
+        return output, output_item_dict
 
     def create_output_from_embeddings(self, outputs, dataset_category_list, annotations_data):
 

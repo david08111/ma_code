@@ -6,10 +6,10 @@ transformations: # potentially more settings available but standard ones preffer
     scale: [0.9, 1.1]
     translate_percent: [0, 0.1]
     rotate: [-2, 2]
-  randomcrop:   ## input arguments handled by
-    height: 128
-    width: 256
-    p: 0.2
+#  randomcrop:   ## input arguments handled by
+#    height: 256
+#    width: 512
+#    p: 0.2
   coarse_dropout:
     max_holes: 3
     max_height: 20
