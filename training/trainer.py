@@ -17,7 +17,7 @@ import time
 
 class Net_trainer():
 
-    def __init__(self, net, save_path, save_freq, metrics_calc_freq, num_epochs, optim_config, scheduler_config, best_eval_mode, device, criterions, **kwargs):
+    def __init__(self, net, save_path, save_freq, metrics_calc_freq, num_epochs, optim_config, scheduler_config, best_eval_mode, device, criterions, use_amp=False, **kwargs):
         self.max_epoch = num_epochs
         self.save_freq = save_freq
         self.metrics_calc_freq = metrics_calc_freq
@@ -28,6 +28,15 @@ class Net_trainer():
 
         self.start_epoch = 0
         self.best_eval_mode = best_eval_mode
+
+        self.use_amp = use_amp
+
+        self.use_cpp = kwargs["config_dict"]["training"]["use_cpp"]
+
+        if self.use_cpp:
+            self.amp_device = "cpu"
+        else:
+            self.amp_device = "cuda"
 
         if "min" in best_eval_mode:
             self.best_loss_score = float('inf')
@@ -82,6 +91,8 @@ class Net_trainer():
         if "logging" in config_dict:
             self.train_logger = TrainLogger(**config_dict["logging"], img_log_freq=self.metrics_calc_freq, hyperparams_dict=self.hyperparams_dict)
 
+        self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
+
         # if first_run:
         #     net.apply(weights_init)
 
@@ -103,12 +114,13 @@ class Net_trainer():
         # }
         return config_dict
 
-    def save_checkpoint(self, net, optimizer, scheduler, epoch):
+    def save_checkpoint(self, net, optimizer, scheduler, scaler, epoch):
         check_pt = {
             "epoch": epoch,
             "model": net.model.state_dict(),
             "optimizer": optimizer.optimizer.state_dict(),
             "scheduler": scheduler.scheduler.state_dict(),
+            "scaler": scaler.state_dict(),
             "best_loss": self.best_loss_score
         }
         torch.save(check_pt, os.path.join(self.save_path, net.model_architecture_name + "_chkpt_" + str(epoch) + ".pth"))
@@ -125,6 +137,7 @@ class Net_trainer():
         net.model.load_state_dict(loaded_check_pt["model"])
         self.optimizer.optimizer.load_state_dict(loaded_check_pt["optimizer"])
         self.scheduler.scheduler.load_state_dict(loaded_check_pt["scheduler"])
+        self.scaler.load_state_dict(loaded_check_pt["scaler"])
         self.best_loss_score = loaded_check_pt["best_loss"]
 
     def load_model(self, net, path):
@@ -157,7 +170,7 @@ class Net_trainer():
             # if batch_id < 700:
             #     continue
 
-            self.optimizer.optimizer.zero_grad(set_to_none=True)
+            # self.optimizer.optimizer.zero_grad(set_to_none=True)
 
             # [inputs, masks, segments_id_data, annotations_data] = datam
             [inputs, masks, annotations_data] = datam
@@ -166,24 +179,33 @@ class Net_trainer():
             inputs = inputs.to(device, non_blocking=True)
             masks = masks.to(device, non_blocking=True)
 
-            outputs, output_items = net(inputs)
+            with torch.autocast(device_type=self.amp_device, enabled=self.use_amp):
+                outputs, output_items = net(inputs)
 
 
-            # inp = inputs.cpu().numpy()[0, :, :, :]
-            # inp = np.moveaxis(inp, 0, -1)
-            # inp = inp.astype(np.uint8)
-            # plt.imshow(inp)
-            # plt.show()
-            # lab = masks.cpu().numpy()[0, :, :]
-            # plt.imshow(lab)
-            # plt.show()
+                # inp = inputs.cpu().numpy()[0, :, :, :]
+                # inp = np.moveaxis(inp, 0, -1)
+                # inp = inp.astype(np.uint8)
+                # plt.imshow(inp)
+                # plt.show()
+                # lab = masks.cpu().numpy()[0, :, :]
+                # plt.imshow(lab)
+                # plt.show()
 
-            # loss, loss_items = self.criterions["criterion_train"].loss(outputs, masks, annotations_data)
-            loss = self.criterions["criterion_train"].loss(outputs, masks, annotations_data)
+                # loss, loss_items = self.criterions["criterion_train"].loss(outputs, masks, annotations_data)
+                loss = self.criterions["criterion_train"].loss(outputs, masks, annotations_data)
 
-            loss.backward()
+            self.scaler.scale(loss).backward()
 
-            self.optimizer.optimizer.step()
+            self.scaler.step(self.optimizer.optimizer)
+
+            self.scaler.update()
+
+            self.optimizer.optimizer.zero_grad(set_to_none=True)
+
+            # loss.backward()
+            #
+            # self.optimizer.optimizer.step()
 
 
             if epoch % self.metrics_calc_freq == 0 and epoch != 0:
@@ -284,19 +306,9 @@ class Net_trainer():
                 inputs = inputs.to(device, non_blocking=True)
                 masks = masks.to(device, non_blocking=True)
 
-                outputs, output_items = net(inputs)
-
-                # test = outputs.cpu().numpy()
-
-                # plt.imshow(inputs.cpu().numpy()[0, :, :, :])
-                # plt.show()
-                # plt.imshow(outputs.detach().cpu().numpy()[0, :, :, 0])
-                # plt.show()
-                # plt.imshow(labels.cpu().numpy()[0, :, :, 0])
-                # plt.show()
-
-                # loss, loss_items = self.criterions["criterion_val"].loss(outputs, masks, annotations_data)
-                loss = self.criterions["criterion_val"].loss(outputs, masks, annotations_data)
+                with torch.autocast(device_type=self.amp_device, enabled=self.use_amp):
+                    outputs, output_items = net(inputs)
+                    loss = self.criterions["criterion_val"].loss(outputs, masks, annotations_data)
 
                 if epoch % self.metrics_calc_freq == 0 and epoch != 0:
                     final_outputs, final_output_segmentation_data = net.create_output_from_embeddings(outputs,
@@ -358,6 +370,9 @@ class Net_trainer():
 
 
         self.scheduler.scheduler.step(loss_sum)
+
+        torch.cuda.empty_cache()
+        gc.collect()
 
         if epoch % self.metrics_calc_freq == 0 and epoch != 0:
             for key in self.criterions["criterion_metrics"].keys():
@@ -436,7 +451,7 @@ class Net_trainer():
             tqdm.write("-" * 70)
 
             if epoch % self.save_freq == 0:
-                self.save_checkpoint(net, self.optimizer, self.scheduler, epoch)
+                self.save_checkpoint(net, self.optimizer, self.scheduler, self.scaler, epoch)
 
             time_diff = time.time() - time_start
             print(time_diff)

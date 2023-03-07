@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 def train_net(config_path, verbose):
     torch.manual_seed(10)
 
-    torch.backends.cudnn.benchmark = True
+    # torch.backends.cudnn.benchmark = True
 
     # config = Config()
 
@@ -34,12 +34,12 @@ def train_net(config_path, verbose):
     data = {
         "train_loader": DataLoader(
             dataset=DataHandler(config_dict["data"]["datasets_split"]["train_set"], config_dict, device), batch_size=config_dict["data"]["batch_size"], shuffle=True,
-            num_workers=config_dict["data"]["num_workers"], drop_last=True, pin_memory=True, collate_fn=custom_collate_fn2),
+            num_workers=config_dict["data"]["num_workers"], drop_last=True, pin_memory=True, collate_fn=custom_collate_fn2, prefetch_factor=config_dict["data"]["prefetch_factor"]),
 
         "val_loader": DataLoader(
             dataset=DataHandler(config_dict["data"]["datasets_split"]["val_set"], config_dict, device),
             batch_size=1, shuffle=False, num_workers=config_dict["data"]["num_workers"], drop_last=False,
-            pin_memory=True, collate_fn=custom_collate_fn2)
+            pin_memory=True, collate_fn=custom_collate_fn2, prefetch_factor=config_dict["data"]["prefetch_factor"])
         # "val_loader": DataLoader(
         #     dataset=DataHandler(config_dict["data"]["datasets_split"]["val_set"], config_dict["data"], device),
         #     batch_size=1, shuffle=False, num_workers=config_dict["data"]["num_workers"], drop_last=False,
@@ -59,7 +59,7 @@ def train_net(config_path, verbose):
     }
 
 
-    net_trainer = Net_trainer(model, config_dict["training"]["save_path"], config_dict["training"]["save_freq"], config_dict["training"]["metrics_calc_freq"], config_dict["training"]["num_epochs"], config_dict["optimizer"], config_dict["scheduler"], config_dict["training"]["best_eval_mode"], device, criterions, config_dict=config_dict)
+    net_trainer = Net_trainer(model, config_dict["training"]["save_path"], config_dict["training"]["save_freq"], config_dict["training"]["metrics_calc_freq"], config_dict["training"]["num_epochs"], config_dict["optimizer"], config_dict["scheduler"], config_dict["training"]["best_eval_mode"], device, criterions, config_dict["training"]["AMP"], config_dict=config_dict)
 
 
     net_trainer.train(model, device, data)

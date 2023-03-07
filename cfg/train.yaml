@@ -7,7 +7,6 @@ model:
     model_architecture_name: unet_inceptionresnetv2
     pretrained: False
     embedding_dims: 150
-  AMP: false
   channels: 3
   output_creation:  # first list element will be used to create the panoptic output prediction
     - multi_sphere_association:
@@ -38,12 +37,13 @@ scheduler:
   cooldown: 20
 
 training:
-  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/test_debug15"
+  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/test_debug18"
 #  gpu_ids: [0]
   save_freq: 10
   metrics_calc_freq: 10
   num_epochs: 100
   use_cpp: False
+  AMP: True
   best_eval_mode: "min"
 
 loss:
@@ -100,6 +100,7 @@ data:
   datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref.yaml"
   batch_size: 4
   num_workers: 4
+  prefetch_factor: 4
   img_width: 512
   img_height: 256
   load_ram: False # loads data fully into the main memory
@@ -107,7 +108,7 @@ data:
 
 logging:
   name: "LOG"
-  save_path: "/work/scratch/dziuba/ma_code_runs/logs/test_debug15"
+  save_path: "/work/scratch/dziuba/ma_code_runs/logs/test_debug18"
   num_log_img: 5
   log_graph: False
   wandb_config:
