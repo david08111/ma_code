@@ -21,6 +21,16 @@ def visualize_transform(img, mask, transform):
 
 if __name__ == "__main__":
 
+    # import numpy as np
+    # test_data = np.random.normal(scale=50, size=500)
+    # bins = np.arange(-2, 2, 0.2)
+    #
+    # hist_data, bins_data = np.histogram(test_data, bins=bins)
+    # hist_data, bins_data = np.histogram(test_data, bins=20)
+    #
+    # plt.bar(bins_data[:-1], hist_data)
+    # plt.show()
+
     augmentations_config_path = "/work/scratch/dziuba/repos/ma_code/cfg/albumentations.yaml"
 
     img_path = "/work/scratch/dziuba/datasets/COCO_panoptic/val2017/000000004765.jpg"

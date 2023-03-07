@@ -31,9 +31,11 @@ class Loss_Wrapper():
         elif loss_type == "reverse_huber":
             return ReverseHuberLoss(**loss_config)
         elif loss_type == "reverse_huber_threshold":
-            return ReverseHuberLoss_threshold(**loss_config)
-        elif loss_type == "spherical_contrast_panoptic_area_normed":
-            return Panoptic_spherical_contrastive_loss_area_normed(**loss_config)
+            return ReverseHuberLossThreshold(**loss_config)
+        elif loss_type == "radius_cross_entropy_mse":
+            return RadiusConditionedCrossEntropyMSE(**loss_config)
+        elif loss_type == "sem_segm_cross_entropy":
+            return SemanticSegmentationCrossEntropy(**loss_config)
         ## deprecated
         elif loss_type == "mse":
             return nn_modules.MSELoss(**loss_config)
@@ -59,8 +61,6 @@ class Loss_Wrapper():
             return BinaryDiceLoss(**loss_config)
         elif loss_type == "dice":
             return DiceLoss(**loss_config)
-        elif loss_type == "threedbbox_mse":
-            return BBox3d_custom(**loss_config)
 
 
 class Metrics_Wrapper():
@@ -95,28 +95,8 @@ class Metrics_Wrapper():
             return False_Pos_Rate(**metric_config)
         elif metric_name == "class_cases":
             return Classification_cases(**metric_config)
-        elif metric_name == "mse_relcamdepth":
-            return MSE_relCamDepth(**metric_config)
-        elif metric_name == "mse_relyaw":
-            return MSE_relYaw(**metric_config)
-        elif metric_name == "mse_objpt":
-            return MSE_objPT(**metric_config)
-        elif metric_name == "mse_objpt_x":
-            return MSE_objPT_X(**metric_config)
-        elif metric_name == "mse_objpt_y":
-            return MSE_objPT_Y(**metric_config)
-        elif metric_name == "mse_bboxshape":
-            return MSE_BBoxShape(**metric_config)
-        elif metric_name == "mse_bboxshape_1":
-            return MSE_BBoxShape_1(**metric_config)
-        elif metric_name == "mse_bboxshape_2":
-            return MSE_BBoxShape_2(**metric_config)
-        elif metric_name == "mse_bboxshape_3":
-            return MSE_BBoxShape_3(**metric_config)
         # elif metric_name == "bbox3d_iou":
             # return BBometric_namex3D_IOU(**metric_config)
-        elif metric_name == "bbox3d_bev_iou":
-            return BBox3D_BEV_IOU(**metric_config)
         elif metric_name == "panoptic_quality":
             return Panoptic_Quality(**metric_config)
         elif metric_name == "recognition_quality":
@@ -166,7 +146,7 @@ class Panoptic_Quality(nn.Module):
 
         self.metric = results
 
-    def log_metric(self, logger, name, epoch, *args, **kwargs):
+    def log(self, logger, name, epoch, *args, **kwargs):
         if "categories" in kwargs:
             if all(x == kwargs["categories"][0] for x in kwargs["categories"]):
                 categories_dict = kwargs["categories"][0]
@@ -241,6 +221,48 @@ class Recognition_Quality(nn.Module):
         # need to filter for pq
         return results
 
+class SemanticSegmentationCrossEntropy(nn.Module):
+    def __init__(self, weight=None):
+        super().__init__()
+        if weight:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            weight = torch.tensor(weight, dtype=torch.float, device=device)
+        self.cross_entropy = nn.CrossEntropyLoss(weight=weight)
+
+    def forward(self, outputs, masks, annotations_data, *args, **kwargs):
+
+        dataset_category_id_list = sorted(list(annotations_data[0]["categories_isthing"].keys()))
+
+        target_mask = torch.zeros(outputs.shape, device=outputs.device)
+
+        target_mask = torch.permute(target_mask, (1, 0, 2, 3))
+
+        # unique_indices = torch.unique(masks[:, 1, :, :]).detach().cpu().int().numpy()
+
+        for i in range(outputs.shape[1]):
+            # indx_c = (masks[:, 1, :, :] == c).int()
+            cat_id = dataset_category_id_list[i]
+            target_mask[i, masks[:, 1, :, :] == cat_id] = 1
+
+        target_mask = torch.permute(target_mask, (1, 0, 2, 3))
+
+        # test = target_mask.detach().cpu().numpy()
+        #
+        # from matplotlib import pyplot as plt
+        # for i in range(test.shape[1]):
+        #     plt.imshow(test[0, i])
+        #     plt.show()
+
+        loss = self.cross_entropy(outputs, target_mask)
+
+        return loss
+
+    def process_end_batch(self):
+        pass
+
+    def log(self, logger, name, epoch, *args, **kwargs):
+        pass
+
 class InfoNCE(nn.Module):
     def __init__(self, temperature):
         super().__init__()
@@ -285,14 +307,40 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
             self.hypsph_radius_map_list = list(range(self.radius_start_val, self.radius_start_val + self.radius_diff_dist * len(self.cat_id_radius_order_map_list), self.radius_diff_dist))
             self.mean_radius_diff = self.radius_diff_dist
 
-    def forward(self, outputs, masks, annotations_data):
+
+        radius_granularity = 10
+
+        bin_elems = 11
+        self.bin_step = radius_diff_dist / radius_granularity
+        bin_roi_bound = self.bin_step * bin_elems
+        bin_max_range = radius_diff_dist * 1000
+        bins = np.arange(0, bin_roi_bound, self.bin_step).tolist() + [bin_max_range]
+        bins = np.array(bins, dtype=np.float64)
+
+        self.abs_radius_err_class_dict = {elem: np.zeros(bin_elems) for elem in self.cat_id_radius_order_map_list}
+        self.abs_radius_err_class_dict["bins"] = bins
+
+        self.radius_loss_item_class_dict = {elem: 0 for elem in self.cat_id_radius_order_map_list}
+        self.radius_loss_item_class_dict["all"] = 0
+
+        self.similarity_loss_item_class_dict = {elem: 0 for elem in self.cat_id_radius_order_map_list}
+        self.similarity_loss_item_class_dict["all"] = 0
+
+        self.radius_loss_counter = 0
+
+        self.similarity_loss_counter = 0
+
+    def forward(self, outputs, masks, annotations_data, *args, **kwargs):
         device = outputs.get_device()
 
-        loss_items_dict = {}
+        # loss_items_dict = {}
 
         # radius_loss = 0
         #
         # similarity_loss = 0
+        # if "categories_dict" in kwargs:
+        #     categories_dict = kwargs["categories_dict"]
+
         radius_loss = torch.tensor(0, dtype=torch.float32, device=device)
 
         similarity_loss = torch.tensor(0, dtype=torch.float32, device=device)
@@ -336,17 +384,27 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
 
                 # abs_error_histogram = np.histogram(abs_error, bins=np.arange())
 
+                np_hist, bins = np.histogram(abs_error, self.abs_radius_err_class_dict["bins"])
 
-                loss_items_dict[f"Radius Loss/Part - Cat ID {unique_cat_id}"] = loss_tmp.item()
+                self.abs_radius_err_class_dict[unique_cat_id] += np_hist
+
+                self.radius_loss_item_class_dict[unique_cat_id] += loss_tmp.item()
+
+
+                # loss_items_dict[f"Radius Loss/Part - Cat ID {unique_cat_id}"] = loss_tmp.item()
+                # if categories_dict:
+                #     loss_items_dict[f"Radius Loss/Part - {categories_dict[unique_cat_id].name}"] = loss_tmp.item()
+                # else:
+                #     loss_items_dict[f"Radius Loss/Part - Cat ID {unique_cat_id}"] = loss_tmp.item()
                 # loss_item_radius_key_tmp = f"Radius Loss - Cat ID {unique_cat_id}"
                 # if loss_item_radius_key_tmp not in loss_items_dict:
                 #     loss_items_dict[f"Radius Loss - Cat ID {unique_cat_id}"] = loss_tmp.item()
                 # else:
                 #     loss_items_dict[f"Radius Loss - Cat ID {unique_cat_id}"] += loss_tmp.item()
-                radius_loss_counter += 1
+                radius_loss_counter += outputs.shape[0]
 
         # test = outputs.shape[0]
-        radius_loss_counter *= outputs.shape[0] #take batch size into account for normalization
+        # radius_loss_counter *= outputs.shape[0] #take batch size into account for normalization
 
         ### instance discrimination part
 
@@ -385,11 +443,14 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
                         similarity_loss += dot_product_embeddings_mean
                         similarity_loss_counter += 1
 
-                        loss_item_similarity_key_tmp = f"Similarity Loss/Part - Cat ID - {unique_cat_id} - Similar"
-                        if loss_item_similarity_key_tmp not in loss_items_dict:
-                            loss_items_dict[loss_item_similarity_key_tmp] = similarity_loss.item()
-                        else:
-                            loss_items_dict[loss_item_similarity_key_tmp] += similarity_loss.item()
+
+                        self.similarity_loss_item_class_dict[unique_cat_id] += similarity_loss.item()
+
+                        # loss_item_similarity_key_tmp = f"Similarity Loss/Part - Cat ID - {unique_cat_id} - Similar"
+                        # if loss_item_similarity_key_tmp not in loss_items_dict:
+                        #     loss_items_dict[loss_item_similarity_key_tmp] = similarity_loss.item()
+                        # else:
+                        #     loss_items_dict[loss_item_similarity_key_tmp] += similarity_loss.item()
 
 
                     for i in range(unique_segment_ids.shape[0] - 1):
@@ -414,38 +475,145 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
                             similarity_loss += dot_product_embeddings_mean
                             similarity_loss_counter += 1
 
-                            loss_item_similarity_key_tmp = f"Similarity Loss/Part - Cat ID - {unique_cat_id} - Disimilar"
-                            if loss_item_similarity_key_tmp not in loss_items_dict:
-                                loss_items_dict[loss_item_similarity_key_tmp] = similarity_loss.item()
-                            else:
-                                loss_items_dict[loss_item_similarity_key_tmp] += similarity_loss.item()
+                            self.similarity_loss_item_class_dict[unique_cat_id] += similarity_loss.item()
+
+                            # loss_item_similarity_key_tmp = f"Similarity Loss/Part - Cat ID - {unique_cat_id} - Disimilar"
+                            # if loss_item_similarity_key_tmp not in loss_items_dict:
+                            #     loss_items_dict[loss_item_similarity_key_tmp] = similarity_loss.item()
+                            # else:
+                            #     loss_items_dict[loss_item_similarity_key_tmp] += similarity_loss.item()
+
+        self.radius_loss_item_class_dict["all"] += radius_loss.item()
+        self.similarity_loss_item_class_dict["all"] += similarity_loss.item()
 
 
         if radius_loss_counter > 0:
             radius_loss /= radius_loss_counter
 
-            for key in loss_items_dict.keys():
-                if "Radius" in key:
-                    loss_items_dict[key] /= radius_loss_counter
+            # for key in loss_items_dict.keys():
+            #     if "Radius" in key:
+            #         loss_items_dict[key] /= radius_loss_counter
 
         if similarity_loss_counter > 0:
             similarity_loss /= similarity_loss_counter
 
-            for key in loss_items_dict.keys():
-                if "Similarity" in key:
-                    loss_items_dict[key] /= similarity_loss_counter
+            # for key in loss_items_dict.keys():
+            #     if "Similarity" in key:
+            #         loss_items_dict[key] /= similarity_loss_counter
 
-
+        self.radius_loss_counter += radius_loss_counter
+        self.similarity_loss_counter += similarity_loss_counter
 
         # loss_items_dict = {"Radius Loss": radius_loss.item(),
         #                    "Similarity Loss": similarity_loss.item()}
-        loss_items_dict["Radius Loss"] = radius_loss.item()
-        loss_items_dict["Similarity Loss"] = similarity_loss.item()
+        # loss_items_dict["Radius Loss"] = radius_loss.item()
+        # loss_items_dict["Similarity Loss"] = similarity_loss.item()
+
 
         total_loss = self.radius_loss_weight * radius_loss + self.similarity_loss_weight * similarity_loss
 
-        return total_loss, loss_items_dict
+        # return total_loss, loss_items_dict
+        return total_loss
 
+    def process_end_batch(self, *args, **kwargs):
+
+        for key in self.radius_loss_item_class_dict:
+            self.radius_loss_item_class_dict[key] /= self.radius_loss_counter
+
+        for key in self.similarity_loss_item_class_dict:
+            self.similarity_loss_item_class_dict[key] /= self.radius_loss_counter
+
+
+
+
+    def log(self, logger, name, epoch, *args, **kwargs):
+
+        if "categories" in kwargs:
+            if all(x == kwargs["categories"][0] for x in kwargs["categories"]):
+                categories_dict = kwargs["categories"][0]
+            else:
+                raise ValueError(
+                    "Implementation doesnt support multiple dataset category associations!")  # conversion to unified categories should work
+        else:
+            categories_dict = None
+
+        caption_name = logger.get_caption_from_name(name)
+
+        self.abs_radius_err_class_dict["bins"][-1] =  self.abs_radius_err_class_dict["bins"][-2] + self.bin_step
+
+        ##### radius abs err histogram
+        for id in self.abs_radius_err_class_dict:
+            if id == "bins":
+                continue
+            caption = f"{caption_name}/Abs Radius Error/Part - {categories_dict[id]['name']}"
+            logger.add_text(f"{caption} - {self.abs_radius_err_class_dict[id]}", logging.INFO, epoch)
+            caption_list = name + [f"Abs Radius Error/Part - {categories_dict[id]['name']}"]
+            logger.add_histogram(caption_list, self.abs_radius_err_class_dict[id], self.abs_radius_err_class_dict["bins"], epoch)
+        ####
+
+        for id in self.radius_loss_item_class_dict:
+            if id == "all":
+                caption = f"{caption_name}/Item - Radius Loss"
+                logger.add_text(f"{caption} - {self.radius_loss_item_class_dict[id]}", logging.INFO, epoch)
+                caption_list = name + ["Item - Radius Loss"]
+                logger.add_scalar(caption_list, self.radius_loss_item_class_dict[id], epoch)
+            else:
+                caption = f"{caption_name}/Item - Radius Loss/Part - {categories_dict[id]['name']}"
+                logger.add_text(f"{caption} - {self.radius_loss_item_class_dict[id]}", logging.INFO, epoch)
+                caption_list = name + ["Item - Radius Loss", f"Part - {categories_dict[id]['name']}"]
+                logger.add_scalar(caption_list, self.radius_loss_item_class_dict[id], epoch)
+
+        for id in self.similarity_loss_item_class_dict:
+            if id == "all":
+                caption = f"{caption_name}/Item - Similarity Loss"
+                logger.add_text(f"{caption} - {self.similarity_loss_item_class_dict[id]}", logging.INFO, epoch)
+                caption_list = name + ["Item - Similarity Loss"]
+                logger.add_scalar(caption_list, self.similarity_loss_item_class_dict[id], epoch)
+            else:
+                caption = f"{caption_name}/Item - Similarity Loss/Part - {categories_dict[id]['name']}"
+                logger.add_text(f"{caption} - {self.similarity_loss_item_class_dict[id]}", logging.INFO, epoch)
+                caption_list = name + ["Item - Similarity Loss", f"Part - {categories_dict[id]['name']}"]
+                logger.add_scalar(caption_list, self.similarity_loss_item_class_dict[id], epoch)
+
+
+
+class RadiusConditionedCrossEntropyMSE(nn.Module):
+    def __init__(self):
+        super().__init__()
+        # def __init__(self, cat_id_radius_order_map_list, radius_diff_dist=1, radius_start_val=0, hypsph_radius_map_list=None):
+        #     super().__init__()
+        # self.cat_id_radius_order_map_list = cat_id_radius_order_map_list
+        # self.radius_diff_dist = radius_diff_dist
+        # self.radius_start_val = radius_start_val
+        #
+        # if hypsph_radius_map_list:
+        #     self.hypsph_radius_map_list = hypsph_radius_map_list
+        #     diff_list_tmp = [abs(hypsph_radius_map_list[i] - hypsph_radius_map_list[i + 1]) for i in
+        #                      range(len(hypsph_radius_map_list) - 1)]
+        #     self.mean_radius_diff = sum(diff_list_tmp) / len(diff_list_tmp)
+        # else:
+        #     self.hypsph_radius_map_list = list(range(self.radius_start_val,
+        #                                              self.radius_start_val + self.radius_diff_dist * len(
+        #                                                  self.cat_id_radius_order_map_list), self.radius_diff_dist))
+        #     self.mean_radius_diff = self.radius_diff_dist
+
+        self.loss_radius_cond2 = Loss_Wrapper({"reverse_huber_threshold": {}}).loss
+        # self.mse_loss = torch.nn.MSELoss()
+
+    def forward(self, inputs, targets):
+        target_radius = targets[0].item()
+
+        scaled = torch.div(inputs, target_radius)
+        log_scaled = torch.mul(torch.log(scaled), -1)
+
+        cond2_loss = self.loss_radius_cond2(inputs, targets)
+
+        # test3 = torch.sum(inputs < target_radius)
+        # test2 = self.mse_loss(inputs, targets)
+        # loss = torch.mean(torch.where(inputs < target_radius, log_scaled, self.mse_loss(inputs, targets)))
+        loss = torch.mean(torch.where(inputs < target_radius, log_scaled, cond2_loss))
+
+        return loss
 
 
 class Weighted_sum(nn.Module):
@@ -491,19 +659,21 @@ class ReverseHuberLoss(nn.Module):
         self.factor = factor
 
     def forward(self, output, target):
-        absdiff = torch.abs(output - target)
+        diff = output - target
+        absdiff = torch.abs(diff)
         C = self.factor * torch.max(absdiff).item()
         # test = torch.where(absdiff < C, absdiff, (absdiff * absdiff + C * C) / (2 * C))
-        return torch.mean(torch.where(absdiff < C, absdiff, (absdiff * absdiff + C * C) / (2 * C)))
+        return torch.mean(torch.where(absdiff < C, absdiff, (diff * diff + C * C) / (2 * C)))
 
-class ReverseHuberLoss_threshold(nn.Module):
+class ReverseHuberLossThreshold(nn.Module):
     def __init__(self, threshold=1):
         super().__init__()
         self.threshold = threshold
 
     def forward(self, output, target):
-        absdiff = torch.abs(output - target)
-        return torch.mean(torch.where(absdiff < self.threshold, absdiff, (absdiff * absdiff)))
+        diff = output - target
+        absdiff = torch.abs(diff)
+        return torch.mean(torch.where(absdiff < self.threshold, absdiff, (diff * diff)))
 
 ##################
 class FocalLoss2d(nn.Module):

@@ -76,9 +76,9 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
         if not os.path.isdir(wandb_path):
             os.makedirs(wandb_path, exist_ok=True)
         if wandb_config:
-            wandb.init(**wandb_config, dir=wandb_path, config=hyperparams_dict)
+            wandb.init(**wandb_config, dir=wandb_path, config=hyperparams_dict, resume=True)
         else:
-            wandb.init(project="MA", entity="david08111", dir=wandb_path, config=hyperparams_dict)
+            wandb.init(project="MA", entity="david08111", dir=wandb_path, config=hyperparams_dict, resume=True)
 
     def get_caption_from_name(self, name):
         if isinstance(name, list):
@@ -289,8 +289,8 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
                         class_labels_gt[segment_uint8_counter] = categories_dict[elem["category_id"]]["name"]
                         # test1 = np.unique(segmentid_mask_gt)
                         # test = segmentid_mask_gt == float(elem["id"])
-                        test2 = elem["category_id"]
-                        test3 = categories_dict[test2]["name"]
+                        # test2 = elem["category_id"]
+                        # test3 = categories_dict[test2]["name"]
                         segmentid_mask_gt_final[segmentid_mask_gt == float(elem["id"])] = segment_uint8_counter
                         segment_uint8_counter += 1
                         if segment_uint8_counter > 255:
@@ -300,10 +300,10 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
 
                     for elem in annotation_data_output[b]["segments_info"]:
                         class_labels_pred[segment_uint8_counter] = categories_dict[elem["category_id"]]["name"]
-                        test1 = np.unique(segmentid_mask_pred)
-                        test = segmentid_mask_pred == float(elem["id"])
-                        test2 = elem["category_id"]
-                        test3 = categories_dict[test2]["name"]
+                        # test1 = np.unique(segmentid_mask_pred)
+                        # test = segmentid_mask_pred == float(elem["id"])
+                        # test2 = elem["category_id"]
+                        # test3 = categories_dict[test2]["name"]
                         segmentid_mask_pred_final[segmentid_mask_pred == float(elem["id"])] = segment_uint8_counter
                         segment_uint8_counter += 1
                         if segment_uint8_counter > 255:
@@ -361,7 +361,7 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
 
                 final_embedding = output_embeddings[b, ...].cpu().detach().numpy()
                 data_pts_names = data_pts_names[b, :, :, :].cpu().detach().numpy()
-                test = list(final_embedding[0, ...].shape)
+                # test = list(final_embedding[0, ...].shape)
                 no_embedding_samples = reduce(lambda x, y: x*y, list(final_embedding[0, ...].shape))
 
                 if no_embedding_samples > self.embedding_max_sample_size:
@@ -379,8 +379,8 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
                     # data_pts_names = data_pts_names[:int(data_pts_names.shape[0] / 8),
                     #                  :int(data_pts_names.shape[1] / 8)]
 
-                    data_pts_names_segment_ids = data_pts_names[0, ...]
-                    data_pts_names_cat_ids = data_pts_names[1, ...]
+                    # data_pts_names_segment_ids = data_pts_names[0, ...]
+                    # data_pts_names_cat_ids = data_pts_names[1, ...]
 
                     data_pts_names_segment_ids = data_pts_names.flatten()
                     data_pts_names_cat_ids = data_pts_names.flatten()
@@ -420,6 +420,38 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
             wandb.watch(model, log="all", log_graph=True)
 
             self.graph_logged = True
+
+    def add_histogram(self, name, histogram_data_bins, bins, epoch):
+
+        # caption_name = self.get_caption_from_name(name)
+
+        wandb_caption = self.get_wandb_section_from_name(name)
+        # WIP - add tb variant
+        # self.tb_logger.add_histogram(caption_name, data_list, epoch, bins)
+        #
+        # np_hist = np.histogram(data_list, bins)
+        # histogram_data_bins = histogram_data_bins.astype(np.int64)
+        # histogram_data_bins = histogram_data_bins
+        # bins[-1] = bins[-2] * 10
+        # histogram_data_bins /= 1000
+        np_hist = (histogram_data_bins, bins)
+        # np_hist = (bins, histogram_data_bins)
+
+        # from matplotlib import pyplot as plt
+        # plt.bar(bins[:-1], histogram_data_bins)
+        # plt.show()
+        #
+        # test_data = np.random.normal(scale=50, size=500)
+        # bins_new = np.arange(-2, 2, 0.2)
+        #
+        # hist_data, bins_data = np.histogram(test_data, bins=bins_new)
+        # hist_d = np.histogram(test_data, bins=20)
+        #
+        # wandb.log({"test-log": wandb.Histogram(np_histogram=hist_d),
+        #            "Epoch": epoch}, commit=True)
+
+        wandb.log({wandb_caption: wandb.Histogram(np_histogram=np_hist),
+                   "Epoch": epoch}, commit=True)
 
     def add_hyperparams(self):
         raise NameError("Not implemented yet!")

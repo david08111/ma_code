@@ -18,10 +18,18 @@ class Model(nn.Module):
         self.model_architecture_origin = self.model_architecture_config.pop("model_architecture_origin")
         self.model_architecture_name = self.model_architecture_config.pop("model_architecture_name")
 
-        output_creator_config = dict(self.model_configs["output_creation"])
-        output_creator_name = list(output_creator_config.keys())[0]
-        output_creator_config = output_creator_config[output_creator_name]
-        self.output_creator = EmbeddingOutputAssociatorWrapper(output_creator_name, **output_creator_config)
+        self.output_creator_list = []
+        for elem in self.model_configs["output_creation"]:
+
+            output_creator_config = dict(elem)
+            output_creator_name = list(output_creator_config.keys())[0]
+            output_creator_config = output_creator_config[output_creator_name]
+            self.output_creator_list.append(EmbeddingOutputAssociatorWrapper(output_creator_name, **output_creator_config))
+
+        # output_creator_config = dict(self.model_configs["output_creation"])
+        # output_creator_name = list(output_creator_config.keys())[0]
+        # output_creator_config = output_creator_config[output_creator_name]
+        # self.output_creator = EmbeddingOutputAssociatorWrapper(output_creator_name, **output_creator_config)
 
         self.model = ModelAssociater.get_model_by_name(self.model_architecture_origin, self.model_architecture_name, self.model_architecture_config)
 
@@ -37,9 +45,13 @@ class Model(nn.Module):
 
     def create_output_from_embeddings(self, outputs, dataset_category_list, annotations_data):
 
-        return self.output_creator.create_output_from_embeddings(outputs, dataset_category_list, annotations_data)
+        return self.output_creator_list[0].create_output_from_embeddings(outputs, dataset_category_list, annotations_data)
 
 
-
+    def create_auxiliary_output_from_embeddings(self, outputs, dataset_category_list, annotations_data):
+        output_list = []
+        for elem in self.output_creator_list[1:]:
+            output_list.append([elem.create_association_from_embeddings(outputs, dataset_category_list, annotations_data), elem.name])
+        return output_list
 
 

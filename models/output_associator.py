@@ -8,15 +8,107 @@ from abc import abstractmethod, ABC
 
 class EmbeddingOutputAssociatorWrapper():
     def __init__(self, name, *args, **kwargs):
+        self.name = name
         self.output_creator = self._set_creator_by_name(name, *args, **kwargs)
 
     def _set_creator_by_name(self, name, *args, **kwargs):
-        if name == "multi_sphere_association":
+        if name == "identity":
+            return IdentityAssocicator(*args, **kwargs)
+        elif name == "multi_sphere_association":
             return MultiSphereAssociator(*args, **kwargs)
+        elif name == "radius":
+            return RadiusAssociator(*args, **kwargs)
 
     def create_output_from_embeddings(self, outputs, dataset_category_list, annotations_data):
         return self.output_creator.create_output_from_embeddings(outputs, dataset_category_list, annotations_data)
 
+    def create_association_from_embeddings(self, outputs, dataset_category_list, annotations_data):
+        return self.output_creator.create_association_from_embeddings(outputs, dataset_category_list, annotations_data)
+
+class IdentityAssocicator():
+    def __init__(self):
+        pass
+
+    def create_output_from_embeddings(self, outputs, dataset_category_list, annotations_data):
+        if all(x == dataset_category_list[0] for x in dataset_category_list):
+            dataset_category = dataset_category_list[0]
+        else:
+            raise ValueError("Implementation doesnt support multiple dataset category associations!") # conversion to unified categories should work
+
+        # id_gen = IdGenerator(dataset_category)
+
+        annotations = []
+        # segm_info = []
+
+        batch_size = outputs.shape[0]
+
+        # emb_dimensions = outputs.shape[1]
+
+        height = outputs.shape[2]
+        width = outputs.shape[3]
+
+        final_output_mask = torch.zeros((3, batch_size, height, width), dtype=torch.uint8) # RGB image -> make configurable
+        # final_single_output_mask = torch.zeros((batch_size,height, width), dtype=torch.float32)
+
+        dataset_category_cat_id_sorted_list = sorted(list(dataset_category.keys()))
+
+        for b in range(batch_size):
+            # outputs_emb_radius_tmp = outputs_emb_radius[b, ...]
+
+            segm_info = []
+
+            id_gen = IdGenerator(dataset_category) # for every image unique - (reduces amount of to distinguisable colors)
+
+            max_class = torch.argmax(outputs, dim=1).detach().cpu().numpy()
+
+            unique_classes = np.unique(max_class)
+
+            for i in unique_classes:
+                cat_id = dataset_category_cat_id_sorted_list[i]
+
+                segment_id, color = id_gen.get_id_and_color(cat_id)
+
+                area = int(np.count_nonzero(max_class[b, :, :]==i))
+                if area == 0:
+                    continue
+
+                color_tensor = torch.tensor(color, dtype=torch.uint8)
+                color_tensor = torch.unsqueeze(color_tensor, dim=1)
+                color_tensor = color_tensor.expand(3, area)
+                color_tensor_assign = color_tensor.clone()  # issues with expand? -  might unnecessary
+                # test2 = final_output_mask[b, :, output_rad_mask_inst]
+                # final_output_mask[b, :, outputs_rad_mask] = torch.tensor(color, dtype=torch.uint8)
+                # test = max_class[b, :, :] == i
+                final_output_mask[:, b, max_class[b, :, :] == i] = color_tensor_assign
+
+                # # bbox computation for a segment
+                # hor = torch.count_nonzero(outputs_rad_range, axis=0)
+                # hor_idx = np.nonzero(hor)[0]
+                # x = hor_idx[0]
+                # width = hor_idx[-1] - x + 1
+                # vert = np.sum(mask, axis=1)
+                # vert_idx = np.nonzero(vert)[0]
+                # y = vert_idx[0]
+                # height = vert_idx[-1] - y + 1
+                # bbox = [x, y, width, height]
+                # bbox = [x, y, width, height];
+                # bbox = [int(value) for value in bbox]
+                #
+
+                segm_info.append({"id": int(segment_id),
+                                  "category_id": int(cat_id),
+                                  "area": area})
+                                  # "area": area,
+                                  # "bbox": bbox,
+                                  # "iscrowd": is_crowd})
+
+
+            annotations.append({'image_id': annotations_data[b]["image_id"],
+                                # 'file_name': file_name,
+                                "segments_info": segm_info})
+
+        final_output_mask = torch.permute(final_output_mask, (1, 0, 2, 3))
+        return final_output_mask, annotations
 
 class MultiSphereAssociator():
     def __init__(self, cat_id_radius_order_map_list, radius_diff_dist, radius_start_val, hypsph_radius_map_list=None, radius_association_margin=0.5, instance_clustering_method=None):
@@ -51,7 +143,7 @@ class MultiSphereAssociator():
 
         batch_size = outputs.shape[0]
 
-        emb_dimensions = outputs.shape[1]
+        # emb_dimensions = outputs.shape[1]
 
         height = outputs.shape[2]
         width = outputs.shape[3]
@@ -100,7 +192,7 @@ class MultiSphereAssociator():
 
                     # final_single_output_mask[b, outputs_rad_mask] = segment_id
 
-                    mask = final_output_mask[b, :, outputs_rad_mask]
+                    # mask = final_output_mask[b, :, outputs_rad_mask]
                     # area = torch.count_nonzero(outputs_rad_mask)
                     # if area.item() == 0:
                     #     continue
@@ -109,7 +201,7 @@ class MultiSphereAssociator():
                     color_tensor = torch.unsqueeze(color_tensor, dim=1)
                     color_tensor = color_tensor.expand(3, area)
                     color_tensor_assign = color_tensor.clone() # dues to issues with expand? -  might unnecessary
-                    test2 = final_output_mask[b, :, outputs_rad_mask]
+                    # test2 = final_output_mask[b, :, outputs_rad_mask]
                     # final_output_mask[b, :, outputs_rad_mask] = torch.tensor(color, dtype=torch.uint8)
                     final_output_mask[b, :, outputs_rad_mask] = color_tensor_assign
 
@@ -166,7 +258,7 @@ class MultiSphereAssociator():
                         color_tensor = torch.unsqueeze(color_tensor, dim=1)
                         color_tensor = color_tensor.expand(3, area)
                         color_tensor_assign = color_tensor.clone()  # issues with expand? -  might unnecessary
-                        test2 = final_output_mask[b, :, output_rad_mask_inst]
+                        # test2 = final_output_mask[b, :, output_rad_mask_inst]
                         # final_output_mask[b, :, outputs_rad_mask] = torch.tensor(color, dtype=torch.uint8)
                         final_output_mask[b, :, output_rad_mask_inst] = color_tensor_assign
 
@@ -187,7 +279,7 @@ class MultiSphereAssociator():
                         #
                         # area = int(area.item())
 
-                        test = np.unique(final_output_mask[b])
+                        # test = np.unique(final_output_mask[b])
 
                         segm_info.append({"id": int(segment_id),
                                           "category_id": int(cat_id),
@@ -213,6 +305,15 @@ class MultiSphereAssociator():
         return final_output_mask, annotations
         # return final_output_mask, final_single_output_mask, annotations
 
+class RadiusAssociator():
+    def __init__(self, mean_origin=False):
+        self.mean_origin = mean_origin
+
+    def create_output_from_embeddings(self, outputs, dataset_category_list, annotations_data):
+        raise NameError("Not implemented yet!")
+
+    def create_association_from_embeddings(self, outputs, dataset_category_list, annotations_data):
+        return torch.unsqueeze(torch.norm(outputs, 2, dim=1), 1)
 
 class ClusteringWrapper():
     def __init__(self, name, *args, **kwargs):

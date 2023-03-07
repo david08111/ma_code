@@ -35,11 +35,11 @@ scheduler:
   cooldown: 20
 
 training:
-  save_path: "/work/scratch/dziuba/ma_code_runs/trainings"
+  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/emb_dims"
 #  gpu_ids: [0]
   save_freq: 10
   metrics_calc_freq: 10
-  num_epochs: 120
+  num_epochs: 130
   use_cpp: False
   best_eval_mode: "min"
 
@@ -48,7 +48,7 @@ loss:
     spherical_contrast_panoptic:
       cat_id_radius_order_map_list: [7, 8, 11, 12, 13, 17, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 31, 32, 33] # describes the mapping of the semantic class to the order (no specific radius - just order) of hyperspheres - from small hypersphere to big or regarding to index
       loss_radius:
-        reverse_huber: {}
+        reverse_huber_threshold: {}
       radius_diff_dist: 10
       radius_start_val: 0
       radius_loss_weight: 0.5
@@ -67,7 +67,7 @@ loss:
     spherical_contrast_panoptic:
       cat_id_radius_order_map_list: [ 7, 8, 11, 12, 13, 17, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 31, 32, 33 ] #describes the mapping of the semantic class to the order of hyperspheres - from small hypersphere to big or regarding to index
       loss_radius:
-        reverse_huber: { }
+        reverse_huber_threshold: { }
       radius_diff_dist: 10
       radius_start_val: 0
       radius_loss_weight: 0.5
@@ -93,23 +93,24 @@ loss:
 
 data:
   datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref.yaml"
-  batch_size: 4
-  num_workers: 8
-  img_width: 512
-  img_height: 256
+  batch_size: 1
+  num_workers: 4
+  img_width: 1024
+  img_height: 512
+  load_ram: True # loads data fully into the main memory
   augmentations_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/augmentations_base.yaml"
 
 logging:
   name: "LOG"
-  save_path: "/work/scratch/dziuba/ma_code_runs/logs"
+  save_path: "/work/scratch/dziuba/ma_code_runs/logs/emb_dims"
   num_log_img: 5
-  log_graph: True
+  log_graph: False
   wandb_config:
-    project: "MA"
-    entity: "david08111"
+    project: "panoptic_sphere_contr_emb"
+    entity: "ma_dziuba"
   sampler:
     nthstep:
-      step_size: [6, 6]
+      step_size: [8, 8]
 
 
 #  img_log_freq: 10 # set by metrics_calc_freq

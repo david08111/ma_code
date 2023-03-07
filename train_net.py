@@ -13,7 +13,12 @@ from torch.utils.data import DataLoader
 
 def train_net(config_path, verbose):
     torch.manual_seed(10)
+
+    torch.backends.cudnn.benchmark = True
+
     # config = Config()
+
+
 
     # config_dict = config(os.path.abspath(config_path))
     config_dict = create_config_dict(os.path.abspath(config_path))
@@ -23,8 +28,8 @@ def train_net(config_path, verbose):
     # dataset_config_dict = create_dataset_config(os.path.abspath(config_dict["data"]["datasets_file_path"]), config_dict)
     # dataset_config_dict = config(os.path.abspath(config_dict["data"]["datasets_file_path"]))
 
-    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    device = torch.device("cuda" if not config_dict["training"]["use_cpp"] else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # device = torch.device("cuda" if not config_dict["training"]["use_cpp"] else "cpu")
 
     data = {
         "train_loader": DataLoader(

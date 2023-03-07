@@ -15,6 +15,8 @@ import cityscapesscripts
 from cityscapesscripts.helpers.labels import Label, labels as ct_scripts_label_list
 import json
 import copy
+import multiprocessing
+from tqdm import tqdm
 
 class DataHandler(torch.utils.data.Dataset):
     def __init__(self, dataset_config_set, general_config, device, *args, **kwargs):
@@ -38,6 +40,7 @@ class DataHandler(torch.utils.data.Dataset):
         self.dataset_general_settings = dict(general_config["data"])
         self.dataset_general_settings.pop("datasets_split")
 
+        self.load_ram = self.dataset_general_settings["load_ram"]
 
         self.dataset_general_settings["device"] = device
 
@@ -159,7 +162,7 @@ class Base_Dataset_COCO(ABC):
     #     self.img_width = img_width
     #     self.img_height = img_height
 
-    def __init__(self, dataset_name, dataset_type, img_data_path, segment_info_file_path, segment_masks_path, img_width, img_height, *args, **kwargs):
+    def __init__(self, dataset_name, dataset_type, img_data_path, segment_info_file_path, segment_masks_path, img_width, img_height, load_ram, channels=3, *args, **kwargs):
         self.dataset_format = "COCO"
         self.dataset_name = dataset_name
         self.dataset_type = dataset_type
@@ -184,6 +187,10 @@ class Base_Dataset_COCO(ABC):
 
         self.img_width = img_width
         self.img_height = img_height
+
+        self.load_ram = load_ram
+
+        self.channels = channels
 
 
     def get_category_by_name(self, category_name):
@@ -249,9 +256,90 @@ class Base_Dataset_COCO(ABC):
 
 
 class Cityscapes_Dataset(Base_Dataset_COCO):
-    def __init__(self, dataset_name, dataset_type, img_data_path, segment_info_file_path, segment_masks_path, img_width, img_height, *args, **kwargs):
-        super().__init__(dataset_name, dataset_type, img_data_path, segment_info_file_path, segment_masks_path, img_width, img_height, *args, **kwargs)
+    def __init__(self, dataset_name, dataset_type, img_data_path, segment_info_file_path, segment_masks_path, img_width, img_height, load_ram=False, channels=3, *args, **kwargs):
+        super().__init__(dataset_name, dataset_type, img_data_path, segment_info_file_path, segment_masks_path, img_width, img_height, load_ram, channels, *args, **kwargs)
         # self.label_list = ct_scripts_label_list  # special data information from cityscapescripts - do not use in general
+
+        if self.load_ram:
+            self.img_loaded_block = np.empty((len(self), self.img_height, self.img_width, self.channels), dtype=np.uint8)
+            self.annotation_mask_loaded_block = np.empty((len(self), self.img_height, self.img_width, self.channels), dtype=np.float32)
+
+            print("Loading Dataset into the RAM...")
+            # tmp_ref = self
+            #
+            # def load_ram_item(i):
+            #     img_metadata = tmp_ref.images_meta_data[i]
+            #
+            #     img_id = img_metadata["id"]
+            #
+            #     img_city_name_dir = img_id.split("_")[0]
+            #
+            #     # img_file_name = img_metadata["file_name"]
+            #
+            #     self.img_loaded_block[i] = Img_DataLoader.load_image(
+            #         os.path.join(self.img_data_path, img_city_name_dir, self.images_meta_data[i]["file_name"]),
+            #         self.img_width, self.img_height)
+            #
+            #     annotation = self.annotations_data[img_id]
+            #
+            #     # annotation_mask = Img_DataLoader.load_image(os.path.join(self.segment_masks_path, annotation["file_name"]), self.img_width, self.img_height)
+            #     # if "file_name" not in annotation.keys():
+            #     #     print(annotation)
+            #     self.annotation_mask_loaded_block[i] = Mask_DataLoader.load_image(
+            #         os.path.join(self.segment_masks_path, annotation["file_name"]), self.img_width, self.img_height,
+            #         self.segment_info["annotations"][i], self.categories_id)
+            #
+            # with multiprocessing.Pool(2, initargs=(tmp_ref,)) as pool:
+            #     # call the function for each item in parallel
+            #     for result in pool.map(load_ram_item, range(len(self))):
+            #         pass
+            for i in tqdm(range(len(self))):
+                img_metadata = self.images_meta_data[i]
+
+                img_id = img_metadata["id"]
+
+                img_city_name_dir = img_id.split("_")[0]
+
+                # img_file_name = img_metadata["file_name"]
+
+                self.img_loaded_block[i] = Img_DataLoader.load_image(
+                    os.path.join(self.img_data_path, img_city_name_dir, self.images_meta_data[i]["file_name"]),
+                    self.img_width, self.img_height)
+
+                annotation = self.annotations_data[img_id]
+
+                # annotation_mask = Img_DataLoader.load_image(os.path.join(self.segment_masks_path, annotation["file_name"]), self.img_width, self.img_height)
+                # if "file_name" not in annotation.keys():
+                #     print(annotation)
+                self.annotation_mask_loaded_block[i] = Mask_DataLoader.load_image(
+                    os.path.join(self.segment_masks_path, annotation["file_name"]), self.img_width, self.img_height,
+                    self.segment_info["annotations"][i], self.categories_id)
+
+            mem_size = (self.img_loaded_block.nbytes + self.annotation_mask_loaded_block.nbytes) / 1000000000
+            print("Dataset loading finished!")
+            print(f"Dataset Mem Size: {mem_size} GB")
+
+    # def load_ram_item(i):
+    #     img_metadata = tmp_ref.images_meta_data[i]
+    #
+    #     img_id = img_metadata["id"]
+    #
+    #     img_city_name_dir = img_id.split("_")[0]
+    #
+    #     # img_file_name = img_metadata["file_name"]
+    #
+    #     self.img_loaded_block[i] = Img_DataLoader.load_image(
+    #         os.path.join(self.img_data_path, img_city_name_dir, self.images_meta_data[i]["file_name"]),
+    #         self.img_width, self.img_height)
+    #
+    #     annotation = self.annotations_data[img_id]
+    #
+    #     # annotation_mask = Img_DataLoader.load_image(os.path.join(self.segment_masks_path, annotation["file_name"]), self.img_width, self.img_height)
+    #     # if "file_name" not in annotation.keys():
+    #     #     print(annotation)
+    #     self.annotation_mask_loaded_block[i] = Mask_DataLoader.load_image(
+    #         os.path.join(self.segment_masks_path, annotation["file_name"]), self.img_width, self.img_height,
+    #         self.segment_info["annotations"][i], self.categories_id)
 
     def __getitem__(self, idx):
         """ Gets specific item from dataset with specified index
@@ -266,38 +354,66 @@ class Cityscapes_Dataset(Base_Dataset_COCO):
         if idx > self.__len__():
              raise ValueError("Index " + idx + " out of range for dataset " + self.dataset_name)
 
-        img_metadata = self.images_meta_data[idx]
+        if self.load_ram:
+            img_metadata = self.images_meta_data[idx]
 
-        img_id = img_metadata["id"]
+            img_id = img_metadata["id"]
 
-        img_city_name_dir = img_id.split("_")[0]
+            # img_city_name_dir = img_id.split("_")[0]
 
-        # img_file_name = img_metadata["file_name"]
+            # img_file_name = img_metadata["file_name"]
 
-        img = Img_DataLoader.load_image(os.path.join(self.img_data_path, img_city_name_dir, self.images_meta_data[idx]["file_name"]), self.img_width, self.img_height)
+            img = self.img_loaded_block[idx]
 
-        annotation = self.annotations_data[img_id]
+            annotation = self.annotations_data[img_id]
 
-        # annotation_mask = Img_DataLoader.load_image(os.path.join(self.segment_masks_path, annotation["file_name"]), self.img_width, self.img_height)
-        # if "file_name" not in annotation.keys():
-        #     print(annotation)
-        annotation_mask = Mask_DataLoader.load_image(os.path.join(self.segment_masks_path, annotation["file_name"]), self.img_width, self.img_height, self.segment_info["annotations"][idx], self.categories_id)
+            # annotation_mask = Img_DataLoader.load_image(os.path.join(self.segment_masks_path, annotation["file_name"]), self.img_width, self.img_height)
+            # if "file_name" not in annotation.keys():
+            #     print(annotation)
+            annotation_mask = self.annotation_mask_loaded_block[idx]
 
-        # annotation.pop("file_name")
-        # plt.imshow(img)
-        # plt.show()
-        # plt.imshow(annotation_mask)
-        # plt.show()
+            data_item_dict = {"img": img,
+                              "annotation_mask": annotation_mask,
+                              "annotations_data": annotation,
+                              "categories_isthing": self.categories_isthing}
+            # data_item_dict = {"img": img,
+            #                   "annotation_mask": annotation_mask,
+            #                   "annotations_data": annotation}
 
-        data_item_dict = {"img": img,
-                    "annotation_mask": annotation_mask,
-                    "annotations_data": annotation,
-                    "categories_isthing": self.categories_isthing}
-        # data_item_dict = {"img": img,
-        #                   "annotation_mask": annotation_mask,
-        #                   "annotations_data": annotation}
+            return data_item_dict
+        else:
+            img_metadata = self.images_meta_data[idx]
 
-        return data_item_dict
+            img_id = img_metadata["id"]
+
+            img_city_name_dir = img_id.split("_")[0]
+
+            # img_file_name = img_metadata["file_name"]
+
+            img = Img_DataLoader.load_image(os.path.join(self.img_data_path, img_city_name_dir, self.images_meta_data[idx]["file_name"]), self.img_width, self.img_height)
+
+            annotation = self.annotations_data[img_id]
+
+            # annotation_mask = Img_DataLoader.load_image(os.path.join(self.segment_masks_path, annotation["file_name"]), self.img_width, self.img_height)
+            # if "file_name" not in annotation.keys():
+            #     print(annotation)
+            annotation_mask = Mask_DataLoader.load_image(os.path.join(self.segment_masks_path, annotation["file_name"]), self.img_width, self.img_height, self.segment_info["annotations"][idx], self.categories_id)
+
+            # annotation.pop("file_name")
+            # plt.imshow(img)
+            # plt.show()
+            # plt.imshow(annotation_mask)
+            # plt.show()
+
+            data_item_dict = {"img": img,
+                        "annotation_mask": annotation_mask,
+                        "annotations_data": annotation,
+                        "categories_isthing": self.categories_isthing}
+            # data_item_dict = {"img": img,
+            #                   "annotation_mask": annotation_mask,
+            #                   "annotations_data": annotation}
+
+            return data_item_dict
 
 # WIP
 class Unified_Dataset():

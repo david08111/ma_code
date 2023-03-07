@@ -97,6 +97,8 @@ def convert_arg_list2config_dict(config_dict, arg_list):
 
 def train_net(config_dict):
     torch.manual_seed(10)
+
+    torch.backends.cudnn.benchmark = True
     # config = Config()
 
     # config_dict = config(os.path.abspath(config_path))
