@@ -37,13 +37,14 @@ scheduler:
   cooldown: 20
 
 training:
-  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/test_debug18"
+  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/test_debug21"
 #  gpu_ids: [0]
   save_freq: 10
   metrics_calc_freq: 10
   num_epochs: 100
   use_cpp: False
   AMP: True
+  compile: True
   best_eval_mode: "min"
 
 loss:
@@ -98,9 +99,9 @@ loss:
 
 data:
   datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref.yaml"
-  batch_size: 4
-  num_workers: 4
-  prefetch_factor: 4
+  batch_size: 8
+  num_workers: 8
+  prefetch_factor: 6
   img_width: 512
   img_height: 256
   load_ram: False # loads data fully into the main memory
@@ -108,7 +109,7 @@ data:
 
 logging:
   name: "LOG"
-  save_path: "/work/scratch/dziuba/ma_code_runs/logs/test_debug18"
+  save_path: "/work/scratch/dziuba/ma_code_runs/logs/test_debug21"
   num_log_img: 5
   log_graph: False
   wandb_config:

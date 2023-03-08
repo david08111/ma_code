@@ -10,6 +10,8 @@ class Optimizer_Wrapper():
     def set_optimizer(self, net, optim_name, optim_config):
         if optim_name == "adam":
             return torch.optim.Adam(net.model.parameters(), **optim_config)
+        elif optim_name == "adamw":
+            return torch.optim.AdamW(net.model.parameters(), **optim_config)
         elif optim_name == "sgd":
             return torch.optim.SGD(net.parameters(), **optim_config)
         elif optim_name == "adagrad":

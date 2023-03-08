@@ -31,6 +31,8 @@ class Net_trainer():
 
         self.use_amp = use_amp
 
+        self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
+
         self.use_cpp = kwargs["config_dict"]["training"]["use_cpp"]
 
         if self.use_cpp:
@@ -91,7 +93,10 @@ class Net_trainer():
         if "logging" in config_dict:
             self.train_logger = TrainLogger(**config_dict["logging"], img_log_freq=self.metrics_calc_freq, hyperparams_dict=self.hyperparams_dict)
 
-        self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
+
+        self.compile = config_dict["training"]["compile"]
+
+        net.model = torch.compile(net.model, disable=not self.compile, backend="inductor")
 
         # if first_run:
         #     net.apply(weights_init)
