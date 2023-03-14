@@ -31,19 +31,28 @@ def train_net(config_path, verbose):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # device = torch.device("cuda" if not config_dict["training"]["use_cpp"] else "cpu")
 
+    # data = {
+    #     "train_loader": DataLoader(
+    #         dataset=DataHandler(config_dict["data"]["datasets_split"]["train_set"], config_dict, device), batch_size=config_dict["data"]["batch_size"], shuffle=True,
+    #         num_workers=config_dict["data"]["num_workers"], drop_last=True, pin_memory=True, collate_fn=custom_collate_fn2, prefetch_factor=config_dict["data"]["prefetch_factor"]),
+    #
+    #     "val_loader": DataLoader(
+    #         dataset=DataHandler(config_dict["data"]["datasets_split"]["val_set"], config_dict, device),
+    #         batch_size=1, shuffle=False, num_workers=config_dict["data"]["num_workers"], drop_last=False,
+    #         pin_memory=True, collate_fn=custom_collate_fn2, prefetch_factor=config_dict["data"]["prefetch_factor"])
+    # }
+
     data = {
         "train_loader": DataLoader(
-            dataset=DataHandler(config_dict["data"]["datasets_split"]["train_set"], config_dict, device), batch_size=config_dict["data"]["batch_size"], shuffle=True,
-            num_workers=config_dict["data"]["num_workers"], drop_last=True, pin_memory=True, collate_fn=custom_collate_fn2, prefetch_factor=config_dict["data"]["prefetch_factor"]),
+            dataset=DataHandler(config_dict["data"]["datasets_split"]["train_set"], config_dict, device),
+            batch_size=config_dict["data"]["batch_size"], shuffle=True,
+            num_workers=config_dict["data"]["num_workers"], drop_last=True, pin_memory=True,
+            collate_fn=custom_collate_fn2),
 
         "val_loader": DataLoader(
             dataset=DataHandler(config_dict["data"]["datasets_split"]["val_set"], config_dict, device),
             batch_size=1, shuffle=False, num_workers=config_dict["data"]["num_workers"], drop_last=False,
-            pin_memory=True, collate_fn=custom_collate_fn2, prefetch_factor=config_dict["data"]["prefetch_factor"])
-        # "val_loader": DataLoader(
-        #     dataset=DataHandler(config_dict["data"]["datasets_split"]["val_set"], config_dict["data"], device),
-        #     batch_size=1, shuffle=False, num_workers=config_dict["data"]["num_workers"], drop_last=False,
-        #     pin_memory=True, collate_fn=custom_collate_fn_2)
+            pin_memory=True, collate_fn=custom_collate_fn2)
     }
 
     model = Model(config_dict)

@@ -96,7 +96,13 @@ class Net_trainer():
 
         self.compile = config_dict["training"]["compile"]
 
-        net.model = torch.compile(net.model, disable=not self.compile, backend="inductor")
+        try:
+            if self.compile:
+                backend = "inductor"
+                print(f"Trying to compile Model with backend {backend}.")
+                net.model = torch.compile(net.model, disable=not self.compile, backend=backend)
+        except:
+            print("Compilation failed - Continuing without compilation.")
 
         # if first_run:
         #     net.apply(weights_init)
@@ -175,7 +181,8 @@ class Net_trainer():
             # if batch_id < 700:
             #     continue
 
-            # self.optimizer.optimizer.zero_grad(set_to_none=True)
+            self.optimizer.optimizer.zero_grad(set_to_none=True)
+            self.optimizer.set_warmup_lr()
 
             # [inputs, masks, segments_id_data, annotations_data] = datam
             [inputs, masks, annotations_data] = datam
@@ -206,7 +213,7 @@ class Net_trainer():
 
             self.scaler.update()
 
-            self.optimizer.optimizer.zero_grad(set_to_none=True)
+            # self.optimizer.optimizer.zero_grad(set_to_none=True)
 
             # loss.backward()
             #
@@ -442,7 +449,7 @@ class Net_trainer():
         # self.start_epoch = 10
         # #########
         for epoch in range(self.start_epoch, self.max_epoch + 1):
-            time_start = time.time()
+            # time_start = time.time()
             tqdm.write("Epoch " + str(epoch) + ":")
             tqdm.write("-" * 50)
             # print("\nEpoch " + str(epoch) + ":")
@@ -458,8 +465,8 @@ class Net_trainer():
             if epoch % self.save_freq == 0:
                 self.save_checkpoint(net, self.optimizer, self.scheduler, self.scaler, epoch)
 
-            time_diff = time.time() - time_start
-            print(time_diff)
+            # time_diff = time.time() - time_start
+            # print(time_diff)
 
 
         self.train_logger.close()

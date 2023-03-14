@@ -28,6 +28,8 @@ class Loss_Wrapper():
             return Discriminative_contrast_loss(**loss_config)
         elif loss_type == "spherical_contrast_panoptic":
             return Panoptic_spherical_contrastive_loss(**loss_config)
+        elif loss_type == "spherical_contrast_panoptic_flexible":
+            return Panoptic_spherical_contrastive_flexible_loss(**loss_config)
         elif loss_type == "reverse_huber":
             return ReverseHuberLoss(**loss_config)
         elif loss_type == "reverse_huber_threshold":
@@ -264,12 +266,12 @@ class SemanticSegmentationCrossEntropy(nn.Module):
         pass
 
 class InfoNCE(nn.Module):
-    def __init__(self, temperature):
+    def __init__(self, temperature=0.1):
         super().__init__()
 
         self.temperature = temperature
 
-    def forward(self, outputs_dict, labels_dict):
+    def forward(self, outputs, masks, annotations_data, *args, **kwargs):
         raise ValueError("Discriminative_contrast_loss not implemented yet!")
 
 class Discriminative_contrast_loss(nn.Module):
@@ -420,6 +422,7 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
                 unique_cat_ids = torch.unique(inst_discr_masks[1, :])
 
                 for unique_cat_id in unique_cat_ids:
+                    unique_cat_id = int(unique_cat_id.item())
                     segments_id_data = masks_reordered_tmp[:, b, masks_reordered_tmp[1, b, :, :] == unique_cat_id]
 
                     unique_segment_ids = torch.unique(segments_id_data[0, :])
@@ -575,7 +578,118 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
                 caption_list = name + ["Item - Similarity Loss", f"Part - {categories_dict[id]['name']}"]
                 logger.add_scalar(caption_list, self.similarity_loss_item_class_dict[id], epoch)
 
+class Panoptic_spherical_contrastive_flexible_loss(nn.Module):
+    def __init__(self, sphere_ct_contr_loss, loss_radius, radius, cosine_emb_loss_margin=0, sphere_ct_contr_loss_weight=1, radius_loss_weight=1, similarity_loss_weight=1):
+        super().__init__()
+        self.sphere_ct_contr_loss = Loss_Wrapper(sphere_ct_contr_loss).loss
+        self.radius_loss = Loss_Wrapper(loss_radius).loss
+        # self.outer_radius_loss = Loss_Wrapper(outer_radius_loss).loss
+        self.radius = radius
 
+        self.cosine_emb_loss_margin = cosine_emb_loss_margin
+
+        self.sphere_ct_contr_loss_weight = sphere_ct_contr_loss_weight
+        self.radius_loss_weight = radius_loss_weight
+        self.similarity_loss_weight = similarity_loss_weight
+
+        self.cat_mean_embedding_dict = {}
+
+
+    def forward(self, outputs, masks, annotations_data, *args, **kwargs):
+        device = outputs.get_device()
+
+        radius_loss = torch.tensor(0, dtype=torch.float32, device=device)
+        similarity_loss = torch.tensor(0, dtype=torch.float32, device=device)
+
+        unique_cat_ids = torch.unique(masks[:, 1, :, :])  # skip segment_id=0
+
+        outputs_reordered_tmp = torch.permute(outputs, (1, 0, 2, 3))
+        masks_reordered_tmp = torch.permute(masks, (1, 0, 2, 3))
+
+        radius_loss_counter = 0
+        similarity_loss_counter = 0
+
+
+        #calc/update mean radius for each class
+################
+
+
+##################
+        if self.radius_loss_weight > float_precision_thr:
+            for unique_cat_id in unique_cat_ids[1:]:  # skip 0
+                unique_cat_id = int(unique_cat_id.item())
+
+                outputs_indx_select = masks[:, 1, :, :] == unique_cat_id
+                outputs_cat_id_embeddings = outputs_reordered_tmp[:, outputs_indx_select]
+                # test = outputs_cat_id_embeddings[:, 0].detach().cpu().numpy()
+                # test2 = np.multiply(test, test.T)
+                # test3 = np.sum(test2)
+                outputs_cat_id_embeddings_norm = torch.norm(outputs_cat_id_embeddings, 2, dim=0)
+
+                cat_id_mean_embedding_local = torch.mean(outputs_cat_id_embeddings_norm, dim=1)
+
+                self.cat_mean_embedding_dict[unique_cat_id]
+
+                # radius_sqared_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), radius*radius, device=device)
+                radius_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), self.radius, device=device,
+                                              dtype=torch.float32)
+                # test_mse_loss_mean = torch.nn.MSELoss()
+                # test = test_mse_loss(outputs_cat_id_embeddings_norm, radius_loss_part).detach().cpu().numpy()
+                # test2 = np.mean(test)
+                # test_mean = test_mse_loss_mean(outputs_cat_id_embeddings_norm, radius_loss_part).detach().cpu().numpy()
+                loss_tmp = self.radius_loss(outputs_cat_id_embeddings_norm, radius_loss_part)
+                radius_loss += loss_tmp
+
+                abs_error = torch.abs(outputs_cat_id_embeddings_norm - radius_loss_part).detach().cpu().numpy()
+
+                # abs_error_histogram = np.histogram(abs_error, bins=np.arange())
+
+                np_hist, bins = np.histogram(abs_error, self.abs_radius_err_class_dict["bins"])
+
+                self.abs_radius_err_class_dict[unique_cat_id] += np_hist
+
+                self.radius_loss_item_class_dict[unique_cat_id] += loss_tmp.item()
+
+                # loss_items_dict[f"Radius Loss/Part - Cat ID {unique_cat_id}"] = loss_tmp.item()
+                # if categories_dict:
+                #     loss_items_dict[f"Radius Loss/Part - {categories_dict[unique_cat_id].name}"] = loss_tmp.item()
+                # else:
+                #     loss_items_dict[f"Radius Loss/Part - Cat ID {unique_cat_id}"] = loss_tmp.item()
+                # loss_item_radius_key_tmp = f"Radius Loss - Cat ID {unique_cat_id}"
+                # if loss_item_radius_key_tmp not in loss_items_dict:
+                #     loss_items_dict[f"Radius Loss - Cat ID {unique_cat_id}"] = loss_tmp.item()
+                # else:
+                #     loss_items_dict[f"Radius Loss - Cat ID {unique_cat_id}"] += loss_tmp.item()
+                radius_loss_counter += outputs.shape[0]
+
+        # test = outputs.shape[0]
+        # radius_loss_counter *= outputs.shape[0] #take batch size into account for normalization
+
+        ### instance discrimination part
+
+        # reduce amount of masks with "isthing" part from masks - B x H x W x (segment_id, cat_id, isthing)
+
+        batch_size = masks.shape[0]
+
+
+    def process_end_batch(self):
+        pass
+
+    def log(self, logger, name, epoch, *args, **kwargs):
+        pass
+
+class Panoptic_spherical_contrastive_flexible_hinge_loss(nn.Module):
+    def __init__(self, inner_radius_loss, outer_radius_loss, radius, contr_hinge_dist, cosine_emb_loss_margin=0, radius_loss_weight=0.5, similarity_loss_weight=0.5):
+        super().__init__()
+
+        self.inner_radius_loss = Loss_Wrapper(inner_radius_loss).loss
+        self.outer_radius_loss = Loss_Wrapper(outer_radius_loss).loss
+        self.radius = radius
+
+        self.cosine_emb_loss_margin = cosine_emb_loss_margin
+
+        self.radius_loss_weight = radius_loss_weight
+        self.similarity_loss_weight = similarity_loss_weight
 
 class RadiusConditionedCrossEntropyMSE(nn.Module):
     def __init__(self):
@@ -614,6 +728,12 @@ class RadiusConditionedCrossEntropyMSE(nn.Module):
         loss = torch.mean(torch.where(inputs < target_radius, log_scaled, cond2_loss))
 
         return loss
+
+    def process_end_batch(self):
+        pass
+
+    def log(self, logger, name, epoch, *args, **kwargs):
+        pass
 
 
 class Weighted_sum(nn.Module):
@@ -665,6 +785,12 @@ class ReverseHuberLoss(nn.Module):
         # test = torch.where(absdiff < C, absdiff, (absdiff * absdiff + C * C) / (2 * C))
         return torch.mean(torch.where(absdiff < C, absdiff, (diff * diff + C * C) / (2 * C)))
 
+    def process_end_batch(self):
+        pass
+
+    def log(self, logger, name, epoch, *args, **kwargs):
+        pass
+
 class ReverseHuberLossThreshold(nn.Module):
     def __init__(self, threshold=1):
         super().__init__()
@@ -674,6 +800,12 @@ class ReverseHuberLossThreshold(nn.Module):
         diff = output - target
         absdiff = torch.abs(diff)
         return torch.mean(torch.where(absdiff < self.threshold, absdiff, (diff * diff)))
+
+    def process_end_batch(self):
+        pass
+
+    def log(self, logger, name, epoch, *args, **kwargs):
+        pass
 
 ##################
 class FocalLoss2d(nn.Module):

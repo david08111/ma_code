@@ -2,10 +2,21 @@ import torch
 
 class Optimizer_Wrapper():
     def __init__(self, net, optim_config):
-        self.optim_type = optim_config.pop("optim_type")
-        self.optim_config = optim_config
+        self.optim_type = list(optim_config.keys())[0]
+        self.optim_config = optim_config[self.optim_type]
+        # self.optim_type = optim_config.pop("optim_type")
+        # self.optim_config = optim_config
+        if "warmup" in self.optim_config:
+            self.warmup = True
+            self.warmup_config = self.optim_config.pop("warmup")
+            self.warmup_config["lr_step_size"] = (self.warmup_config["end_lr"] - self.warmup_config["start_lr"]) / self.warmup_config["num_steps"]
+            self.step = 0
+            # self.step_fnct = self._step_warmup
+        else:
+            self.warmup = False
+            # self.step_fnct = self.optimizer.step
 
-        self.optimizer = self.set_optimizer(net, self.optim_type, optim_config)
+        self.optimizer = self.set_optimizer(net, self.optim_type, self.optim_config)
 
     def set_optimizer(self, net, optim_name, optim_config):
         if optim_name == "adam":
@@ -36,7 +47,32 @@ class Optimizer_Wrapper():
         #     return torch.optim.Adamax(net.parameters(), lr=self.learning_rate, eps=self.eps, weight_decay=self.weight_decay)
 
     def step(self):
-        self.optimizer.step() # add closure method?
+        self.optimizer.step()
+
+    # self.step_fnct()
+    # def step(self):
+    #     self.step_fnct()
+    #
+    # def _step_warmup(self):
+    #     lr = self.warmup_config["start_lr"] + self.step * self.warmup_config["lr_step_size"]
+    #     for p in self.optimizer.param_groups:
+    #         p['lr'] = lr
+    #     self.step += 1
+    #
+    #     if lr >= self.warmup_config["end_lr"]:
+    #         self.step_fnct = self.optimizer.step
+    #
+    #     self.optimizer.step()
+
+    def set_warmup_lr(self):
+        if self.warmup:
+            lr = self.warmup_config["start_lr"] + self.step * self.warmup_config["lr_step_size"]
+            for p in self.optimizer.param_groups:
+                p['lr'] = lr
+            self.step += 1
+
+            if lr >= self.warmup_config["end_lr"]:
+                self.warmup = False
 
     def load_state_dict(self, state_dict):
         self.optimizer.load_state_dict(state_dict)
