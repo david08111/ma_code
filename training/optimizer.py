@@ -3,7 +3,7 @@ import torch
 class Optimizer_Wrapper():
     def __init__(self, net, optim_config):
         self.optim_type = list(optim_config.keys())[0]
-        self.optim_config = optim_config[self.optim_type]
+        self.optim_config = dict(optim_config[self.optim_type])
         # self.optim_type = optim_config.pop("optim_type")
         # self.optim_config = optim_config
         if "warmup" in self.optim_config:

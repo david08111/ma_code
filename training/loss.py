@@ -333,7 +333,7 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
         self.similarity_loss_counter = 0
 
     def forward(self, outputs, masks, annotations_data, *args, **kwargs):
-        device = outputs.get_device()
+        device = outputs.device
 
         # loss_items_dict = {}
 
@@ -596,7 +596,7 @@ class Panoptic_spherical_contrastive_flexible_loss(nn.Module):
 
 
     def forward(self, outputs, masks, annotations_data, *args, **kwargs):
-        device = outputs.get_device()
+        device = outputs.device
 
         radius_loss = torch.tensor(0, dtype=torch.float32, device=device)
         similarity_loss = torch.tensor(0, dtype=torch.float32, device=device)

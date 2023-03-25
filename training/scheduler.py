@@ -3,7 +3,7 @@ import torch
 class Scheduler_Wrapper():
     def __init__(self, scheduler_config, optimizer):
         self.scheduler_type = list(scheduler_config.keys())[0]
-        self.scheduler_config = scheduler_config[self.scheduler_type]
+        self.scheduler_config = dict(scheduler_config[self.scheduler_type])
         # self.scheduler_type = scheduler_config.pop("sched_type")
         # self.scheduler_config = scheduler_config
         self.optimizer = optimizer
