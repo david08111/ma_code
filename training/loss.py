@@ -306,7 +306,7 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
             diff_list_tmp = [abs(hypsph_radius_map_list[i] - hypsph_radius_map_list[i+1]) for i in range(len(hypsph_radius_map_list) - 1)]
             self.mean_radius_diff = sum(diff_list_tmp) / len(diff_list_tmp)
         else:
-            self.hypsph_radius_map_list = list(range(self.radius_start_val, self.radius_start_val + self.radius_diff_dist * len(self.cat_id_radius_order_map_list), self.radius_diff_dist))
+            self.hypsph_radius_map_list = list(np.arange(self.radius_start_val, self.radius_start_val + self.radius_diff_dist * len(self.cat_id_radius_order_map_list), self.radius_diff_dist))
             self.mean_radius_diff = self.radius_diff_dist
 
 
@@ -612,7 +612,7 @@ class Panoptic_spherical_contrastive_flexible_loss(nn.Module):
 
         #calc/update mean radius for each class
 ################
-
+        # WIP
 
 ##################
         if self.radius_loss_weight > float_precision_thr:
@@ -628,7 +628,7 @@ class Panoptic_spherical_contrastive_flexible_loss(nn.Module):
 
                 cat_id_mean_embedding_local = torch.mean(outputs_cat_id_embeddings_norm, dim=1)
 
-                self.cat_mean_embedding_dict[unique_cat_id]
+                self.cat_mean_embedding_dict[unique_cat_id] = cat_id_mean_embedding_local
 
                 # radius_sqared_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), radius*radius, device=device)
                 radius_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), self.radius, device=device,

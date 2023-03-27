@@ -54,4 +54,6 @@ class Model(nn.Module):
             output_list.append([elem.create_association_from_embeddings(outputs, dataset_category_list, annotations_data), elem.name])
         return output_list
 
+    def accumulate_mean_embedding(self, outputs, masks, annotations_data, *args, **kwargs):
+        self.output_creator_list[0].accumulate_mean_embedding(outputs, masks, annotations_data, *args, **kwargs)
 

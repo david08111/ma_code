@@ -164,6 +164,27 @@ class Net_trainer():
 
         # current unification assumption (all datasets same category dict mapping)
 
+    def epoch_init(self, epoch, net, device, data):
+
+        net.model.eval()
+        with torch.no_grad():
+
+            for batch_id, datam in enumerate(data["train_loader"]):
+
+                [inputs, masks, annotations_data] = datam
+
+                inputs = inputs.to(device, non_blocking=True)
+                masks = masks.to(device, non_blocking=True)
+
+                with torch.autocast(device_type=self.amp_device, enabled=self.use_amp):
+                    outputs, output_items = net(inputs)
+
+                    net.accumulate_mean_embedding(outputs, masks, annotations_data)
+
+
+
+        torch.cuda.empty_cache()
+        gc.collect()
 
     def train_step(self, epoch, net, device, data):
 
@@ -455,6 +476,8 @@ class Net_trainer():
             # print("\nEpoch " + str(epoch) + ":")
             # print("Epoch {}:".format(epoch))
             # print("-" * 50)
+            self.epoch_init(epoch, net, device, data)
+
             self.train_step(epoch, net, device, data)
             self.val(epoch, net, device, data)
             # self.epoch_finish()

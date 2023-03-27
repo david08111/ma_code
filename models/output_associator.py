@@ -123,7 +123,7 @@ class MultiSphereAssociator():
         if hypsph_radius_map_list:
             self.hypsph_radius_map_list = hypsph_radius_map_list
         else:
-            self.hypsph_radius_map_list = list(range(self.radius_start_val, self.radius_start_val + self.radius_diff_dist * len(self.cat_id_radius_order_map_list), self.radius_diff_dist))
+            self.hypsph_radius_map_list = list(np.arange(self.radius_start_val, self.radius_start_val + self.radius_diff_dist * len(self.cat_id_radius_order_map_list), self.radius_diff_dist))
 
         self.instance_clustering_method = ClusteringWrapper(instance_cluster_method_name, **instance_clustering_method_config)
         #
@@ -304,6 +304,61 @@ class MultiSphereAssociator():
 
         return final_output_mask, annotations
         # return final_output_mask, final_single_output_mask, annotations
+
+class MultiSphereAssociatorFlexible():
+    def __init__(self, radius, radius_association_margin=0.5, instance_clustering_method=None):
+        self.radius = radius
+        self.radius_association_margin = radius_association_margin
+
+        instance_cluster_method_name = list(instance_clustering_method.keys())[0]
+        instance_clustering_method_config = instance_clustering_method[instance_cluster_method_name]
+
+        self.instance_clustering_method = ClusteringWrapper(instance_cluster_method_name, **instance_clustering_method_config)
+
+        self.cls_mean_embeddings = {}
+        #
+        # self.cls_mean_embeddings_init = False
+
+    def create_output_from_embeddings(self, outputs, dataset_category_list, annotations_data):
+        # WIP
+        raise NameError("Not implemented yet!")
+
+
+        # return final_output_mask, final_single_output_mask, annotations
+
+    def accumulate_mean_embedding(self, outputs, masks, annotations_data, *args, **kwargs):
+
+        unique_cat_ids = torch.unique(masks[:, 1, :, :])  # skip segment_id=0
+
+        outputs_reordered_tmp = torch.permute(outputs, (1, 0, 2, 3))
+        # masks_reordered_tmp = torch.permute(masks, (1, 0, 2, 3))
+
+
+        ##################
+        for unique_cat_id in unique_cat_ids[1:]:  # skip 0
+            unique_cat_id = int(unique_cat_id.item())
+
+            outputs_indx_select = masks[:, 1, :, :] == unique_cat_id
+            outputs_cat_id_embeddings = outputs_reordered_tmp[:, outputs_indx_select]
+            # test = outputs_cat_id_embeddings[:, 0].detach().cpu().numpy()
+            # test2 = np.multiply(test, test.T)
+            # test3 = np.sum(test2)
+            outputs_cat_id_embeddings_mean = torch.mean(outputs_cat_id_embeddings, dim=1)
+
+            if unique_cat_id not in self.cls_mean_embeddings.keys():
+                self.cls_mean_embeddings[unique_cat_id] = outputs_cat_id_embeddings_mean
+            else:
+                self.cls_mean_embeddings[unique_cat_id] = (outputs_cat_id_embeddings_mean + self.cls_mean_embeddings[unique_cat_id]) / 2
+
+
+
+
+
+    def get_cls_mean_embeddings(self):
+        return self.cls_mean_embeddings
+
+    def set_cls_mean_embeddings(self, new_cls_mean_embeddings):
+        self.cls_mean_embeddings = new_cls_mean_embeddings
 
 class RadiusAssociator():
     def __init__(self, mean_origin=False):
