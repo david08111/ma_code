@@ -1,6 +1,7 @@
 from .optimizer import Optimizer_Wrapper
 from .scheduler import Scheduler_Wrapper
 from .loss import Metrics_Wrapper
+from .embedding_handler import EmbeddingHandler
 from utils import TrainLogger
 import torch
 import os
@@ -29,6 +30,8 @@ class Net_trainer():
         self.start_epoch = 0
         self.best_eval_mode = best_eval_mode
 
+        self.device = device
+
         self.use_amp = use_amp
 
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
@@ -49,6 +52,10 @@ class Net_trainer():
         torch.backends.cudnn.enabled = True
 
         self.hyperparams_dict = self.create_hyperparams_dict(kwargs["config_dict"])
+
+        if "embedding_handler" in kwargs["config_dict"].keys():
+            self.embedding_handler_config = kwargs["config_dict"]["embedding_handler"]
+            # self.embedding_handler = EmbeddingHandler(embedding_handler_config["embedding_storage"], embedding_handler_config["embedding_sampler"], )
 
         self.train_setup(net, device, kwargs["config_dict"])
 
@@ -164,27 +171,31 @@ class Net_trainer():
 
         # current unification assumption (all datasets same category dict mapping)
 
+    def set_embedding_handler(self, net):
+        if self.embedding_handler_config:
+            self.embedding_handler = EmbeddingHandler(self.embedding_handler_config["embedding_storage"], self.embedding_handler_config["embedding_sampler"], self.dataset_category_dict, net.model_architecture_embedding_dims, self.device)
+
     def epoch_init(self, epoch, net, device, data):
+        if self.embedding_handler_config:
+            net.model.eval()
+            with torch.no_grad():
 
-        net.model.eval()
-        with torch.no_grad():
+                for batch_id, datam in enumerate(data["train_loader"]):
 
-            for batch_id, datam in enumerate(data["train_loader"]):
+                    [inputs, masks, annotations_data] = datam
 
-                [inputs, masks, annotations_data] = datam
+                    inputs = inputs.to(device, non_blocking=True)
+                    masks = masks.to(device, non_blocking=True)
 
-                inputs = inputs.to(device, non_blocking=True)
-                masks = masks.to(device, non_blocking=True)
+                    with torch.autocast(device_type=self.amp_device, enabled=self.use_amp):
+                        outputs, output_items = net(inputs)
 
-                with torch.autocast(device_type=self.amp_device, enabled=self.use_amp):
-                    outputs, output_items = net(inputs)
-
-                    net.accumulate_mean_embedding(outputs, masks, annotations_data)
+                        self.embedding_handler.accumulate_mean_embedding(outputs, masks)
 
 
 
-        torch.cuda.empty_cache()
-        gc.collect()
+            torch.cuda.empty_cache()
+            gc.collect()
 
     def train_step(self, epoch, net, device, data):
 
@@ -226,7 +237,7 @@ class Net_trainer():
                 # plt.show()
 
                 # loss, loss_items = self.criterions["criterion_train"].loss(outputs, masks, annotations_data)
-                loss = self.criterions["criterion_train"].loss(outputs, masks, annotations_data)
+                loss = self.criterions["criterion_train"].loss(outputs, masks, annotations_data, embedding_handler=self.embedding_handler)
 
             self.scaler.scale(loss).backward()
 
@@ -341,7 +352,7 @@ class Net_trainer():
 
                 with torch.autocast(device_type=self.amp_device, enabled=self.use_amp):
                     outputs, output_items = net(inputs)
-                    loss = self.criterions["criterion_val"].loss(outputs, masks, annotations_data)
+                    loss = self.criterions["criterion_val"].loss(outputs, masks, annotations_data, embedding_handler=self.embedding_handler)
 
                 if epoch % self.metrics_calc_freq == 0 and epoch != 0:
                     final_outputs, final_output_segmentation_data = net.create_output_from_embeddings(outputs,

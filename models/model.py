@@ -15,6 +15,7 @@ class Model(nn.Module):
         self.model_configs = general_config["model"]
 
         self.model_architecture_config = dict(self.model_configs["model_architecture"])
+        self.model_architecture_embedding_dims = self.model_architecture_config["embeddings_dims"]
         self.model_architecture_origin = self.model_architecture_config.pop("model_architecture_origin")
         self.model_architecture_name = self.model_architecture_config.pop("model_architecture_name")
 
@@ -54,6 +55,6 @@ class Model(nn.Module):
             output_list.append([elem.create_association_from_embeddings(outputs, dataset_category_list, annotations_data), elem.name])
         return output_list
 
-    def accumulate_mean_embedding(self, outputs, masks, annotations_data, *args, **kwargs):
-        self.output_creator_list[0].accumulate_mean_embedding(outputs, masks, annotations_data, *args, **kwargs)
+    # def accumulate_mean_embedding(self, outputs, masks, annotations_data, *args, **kwargs):
+    #     self.output_creator_list[0].accumulate_mean_embedding(outputs, masks, annotations_data, *args, **kwargs)
 

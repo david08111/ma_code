@@ -55,6 +55,14 @@ training:
   AMP: True
   compile: False
   best_eval_mode: "min"
+  embedding_handler:
+    embedding_storage:
+      memory_bank:
+        k: 1000
+    embedding_sampler:
+      random_sampler: {}
+
+
 
 #loss:
 #  train_loss:
@@ -135,7 +143,7 @@ loss:
 data:
   datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref_debug.yaml"
   batch_size: 4
-  num_workers: 2
+  num_workers: 0
   prefetch_factor: 4
   img_width: 512
   img_height: 256

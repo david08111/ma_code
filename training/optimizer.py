@@ -33,18 +33,8 @@ class Optimizer_Wrapper():
             return torch.optim.Adam(net.parameters(), amsgrad=True, **optim_config)
         elif optim_name == "adamax":
             return torch.optim.Adamax(net.parameters(), **optim_config)
-        # if optim_name == "adam":
-        #     return torch.optim.Adam(net.model.parameters(), lr=self.learning_rate, eps=self.eps, weight_decay=self.weight_decay)
-        # elif optim_name == "sgd":
-        #     return torch.optim.SGD(net.parameters(), lr=self.learning_rate, momentum=self.momentum, weight_decay=self.weight_decay)
-        # elif optim_name == "adagrad":
-        #     return torch.optim.Adagrad(net.parameters(), lr=self.learning_rate, lr_decay=self.learning_rate_decay, weight_decay=self.weight_decay, eps=self.eps)
-        # elif optim_name == "rmsprop":
-        #     return torch.optim.RMSprop(net.parameters(), lr=self.learning_rate, alpha=self.alpha, eps=self.eps, weight_decay=self.weight_decay, momentum=self.momentum)
-        # elif optim_name == "amsgrad":
-        #     return torch.optim.Adam(net.parameters(), lr=self.learning_rate, eps=self.eps, weight_decay=self.weight_decay, amsgrad=True)
-        # elif optim_name == "adamax":
-        #     return torch.optim.Adamax(net.parameters(), lr=self.learning_rate, eps=self.eps, weight_decay=self.weight_decay)
+        else:
+            raise NameError(f"Optimizer {optim_name} not implemented!")
 
     def step(self):
         self.optimizer.step()
