@@ -58,9 +58,10 @@ training:
   embedding_handler:
     embedding_storage:
       memory_bank:
-        k: 1000
+        num_embeddings: 1000 # equally distributed to categories
     embedding_sampler:
       random_sampler: {}
+
 
 
 
@@ -83,6 +84,8 @@ loss:
       sphere_ct_contr_loss:
         info_nce:
           temperature: 0.1
+      num_pos_embeddings: 1
+      num_neg_embeddings: 500
       loss_radius:
         #        reverse_huber_threshold: { }
         radius_cross_entropy_mse: { }
@@ -113,7 +116,8 @@ loss:
   val_loss:
     spherical_contrast_panoptic_flexible:
       sphere_ct_contr_loss:
-        info_nce: {}
+        info_nce:
+          temperature: 0.1
       loss_radius:
         #        reverse_huber_threshold: { }
         radius_cross_entropy_mse: { }

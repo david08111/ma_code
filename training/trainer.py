@@ -53,9 +53,11 @@ class Net_trainer():
 
         self.hyperparams_dict = self.create_hyperparams_dict(kwargs["config_dict"])
 
-        if "embedding_handler" in kwargs["config_dict"].keys():
-            self.embedding_handler_config = kwargs["config_dict"]["embedding_handler"]
+        if "embedding_handler" in kwargs["config_dict"]["training"].keys():
+            self.embedding_handler_config = kwargs["config_dict"]["training"]["embedding_handler"]
             # self.embedding_handler = EmbeddingHandler(embedding_handler_config["embedding_storage"], embedding_handler_config["embedding_sampler"], )
+        else:
+            self.embedding_handler_config = None
 
         self.train_setup(net, device, kwargs["config_dict"])
 
@@ -173,7 +175,10 @@ class Net_trainer():
 
     def set_embedding_handler(self, net):
         if self.embedding_handler_config:
-            self.embedding_handler = EmbeddingHandler(self.embedding_handler_config["embedding_storage"], self.embedding_handler_config["embedding_sampler"], self.dataset_category_dict, net.model_architecture_embedding_dims, self.device)
+            self.embedding_handler = EmbeddingHandler(self.embedding_handler_config["embedding_storage"], self.embedding_handler_config["embedding_sampler"], self.dataset_category_dict["train_loader"][0], net.model_architecture_embedding_dims, self.device)
+
+        else:
+            self.embedding_handler = None
 
     def epoch_init(self, epoch, net, device, data):
         if self.embedding_handler_config:
@@ -475,6 +480,7 @@ class Net_trainer():
     def train(self, net, device, data):
 
         self.set_categories(data)
+        self.set_embedding_handler(net)
         # # # # remove !
         # ######
         # self.start_epoch -= 1

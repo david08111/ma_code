@@ -39,10 +39,14 @@ class Loss_Wrapper():
         elif loss_type == "sem_segm_cross_entropy":
             return SemanticSegmentationCrossEntropy(**loss_config)
         ## deprecated
+        # elif loss_type == "mse":
+        #     return nn_modules.MSELoss(**loss_config)
+        # elif loss_type == "l1":
+        #     return nn_modules.L1Loss(**loss_config)
         elif loss_type == "mse":
-            return nn_modules.MSELoss(**loss_config)
+            return MSELossWrapper(**loss_config)
         elif loss_type == "l1":
-            return nn_modules.L1Loss(**loss_config)
+            return L1LossWrapper(**loss_config)
         elif loss_type == "cross_entropy":
             return nn_modules.CrossEntropyLoss(**loss_config)
         elif loss_type == "bin_cross_entropy":
@@ -223,6 +227,25 @@ class Recognition_Quality(nn.Module):
         # need to filter for pq
         return results
 
+class MSELossWrapper(nn.Module):
+    def __init__(self, size_average=None, reduce=None, reduction: str = 'mean'):
+        super().__init__()
+
+        self.mse_loss = nn_modules.MSELoss(size_average=size_average, reduce=reduce, reduction=reduction)
+
+    def forward(self, inputs, targets, *args, **kwargs):
+        return self.mse_loss(inputs, targets)
+
+
+class L1LossWrapper(nn.Module):
+    def __init__(self, size_average=None, reduce=None, reduction: str = 'mean'):
+        super().__init__()
+
+        self.l1_loss = nn_modules.L1Loss(size_average=size_average, reduce=reduce, reduction=reduction)
+
+    def forward(self, inputs, targets, *args, **kwargs):
+        return self.l1_loss(inputs, targets)
+
 class SemanticSegmentationCrossEntropy(nn.Module):
     def __init__(self, weight=None):
         super().__init__()
@@ -265,14 +288,253 @@ class SemanticSegmentationCrossEntropy(nn.Module):
     def log(self, logger, name, epoch, *args, **kwargs):
         pass
 
+# class InfoNCE(nn.Module):
+#     def __init__(self, temperature=0.1):
+#         super().__init__()
+#
+#         self.temperature = temperature
+#
+#     def forward(self, outputs, masks, annotations_data, *args, **kwargs):
+#         raise ValueError("Discriminative_contrast_loss not implemented yet!")
+
 class InfoNCE(nn.Module):
-    def __init__(self, temperature=0.1):
+    """
+    Calculates the InfoNCE loss for self-supervised learning.
+    This contrastive loss enforces the embeddings of similar (positive) samples to be close
+        and those of different (negative) samples to be distant.
+    A query embedding is compared with one positive key and with one or more negative keys.
+    References:
+        https://arxiv.org/abs/1807.03748v2
+        https://arxiv.org/abs/2010.05113
+    Args:
+        temperature: Logits are divided by temperature before calculating the cross entropy.
+        reduction: Reduction method applied to the output.
+            Value must be one of ['none', 'sum', 'mean'].
+            See torch.nn.functional.cross_entropy for more details about each option.
+        negative_mode: Determines how the (optional) negative_keys are handled.
+            Value must be one of ['paired', 'unpaired'].
+            If 'paired', then each query sample is paired with a number of negative keys.
+            Comparable to a triplet loss, but with multiple negatives per sample.
+            If 'unpaired', then the set of negative keys are all unrelated to any positive key.
+    Input shape:
+        query: (N, D) Tensor with query samples (e.g. embeddings of the input).
+        positive_key: (N, D) Tensor with positive samples (e.g. embeddings of augmented input).
+        negative_keys (optional): Tensor with negative samples (e.g. embeddings of other inputs)
+            If negative_mode = 'paired', then negative_keys is a (N, M, D) Tensor.
+            If negative_mode = 'unpaired', then negative_keys is a (M, D) Tensor.
+            If None, then the negative keys for a sample are the positive keys for the other samples.
+    Returns:
+         Value of the InfoNCE Loss.
+     Examples:
+        # >>> loss = InfoNCE()
+        # >>> batch_size, num_negative, embedding_size = 32, 48, 128
+        # >>> query = torch.randn(batch_size, embedding_size)
+        # >>> positive_key = torch.randn(batch_size, embedding_size)
+        # >>> negative_keys = torch.randn(num_negative, embedding_size)
+        # >>> output = loss(query, positive_key, negative_keys)
+    """
+
+    def __init__(self, temperature=0.1, reduction='mean', negative_mode='unpaired'):
         super().__init__()
-
         self.temperature = temperature
+        self.reduction = reduction
+        self.negative_mode = negative_mode
 
-    def forward(self, outputs, masks, annotations_data, *args, **kwargs):
-        raise ValueError("Discriminative_contrast_loss not implemented yet!")
+    def forward(self, inputs, targets, *args, **kwargs):
+        return info_nce(kwargs["query"], kwargs["positive_key"], kwargs["negative_keys"],
+                        temperature=self.temperature,
+                        reduction=self.reduction,
+                        negative_mode=self.negative_mode)
+
+
+def info_nce(query, positive_key, negative_keys=None, temperature=0.1, reduction='mean', negative_mode='unpaired'):
+    # Check input dimensionality.
+    if query.dim() != 2:
+        raise ValueError('<query> must have 2 dimensions.')
+    if positive_key.dim() != 2:
+        raise ValueError('<positive_key> must have 2 dimensions.')
+    if negative_keys is not None:
+        if negative_mode == 'unpaired' and negative_keys.dim() != 2:
+            raise ValueError("<negative_keys> must have 2 dimensions if <negative_mode> == 'unpaired'.")
+        if negative_mode == 'paired' and negative_keys.dim() != 3:
+            raise ValueError("<negative_keys> must have 3 dimensions if <negative_mode> == 'paired'.")
+
+    # Check matching number of samples.
+    if len(query) != len(positive_key):
+        raise ValueError('<query> and <positive_key> must must have the same number of samples.')
+    if negative_keys is not None:
+        if negative_mode == 'paired' and len(query) != len(negative_keys):
+            raise ValueError("If negative_mode == 'paired', then <negative_keys> must have the same number of samples as <query>.")
+
+    # Embedding vectors should have same number of components.
+    if query.shape[-1] != positive_key.shape[-1]:
+        raise ValueError('Vectors of <query> and <positive_key> should have the same number of components.')
+    if negative_keys is not None:
+        if query.shape[-1] != negative_keys.shape[-1]:
+            raise ValueError('Vectors of <query> and <negative_keys> should have the same number of components.')
+
+    # Normalize to unit vectors
+    query, positive_key, negative_keys = normalize(query, positive_key, negative_keys)
+    if negative_keys is not None:
+        # Explicit negative keys
+
+        # Cosine between positive pairs
+        positive_logit = torch.sum(query * positive_key, dim=1, keepdim=True)
+
+        if negative_mode == 'unpaired':
+            # Cosine between all query-negative combinations
+            negative_logits = query @ transpose(negative_keys)
+
+        elif negative_mode == 'paired':
+            query = query.unsqueeze(1)
+            negative_logits = query @ transpose(negative_keys)
+            negative_logits = negative_logits.squeeze(1)
+
+        # First index in last dimension are the positive samples
+        logits = torch.cat([positive_logit, negative_logits], dim=1)
+        labels = torch.zeros(len(logits), dtype=torch.long, device=query.device)
+    else:
+        # Negative keys are implicitly off-diagonal positive keys.
+
+        # Cosine between all combinations
+        logits = query @ transpose(positive_key)
+
+        # Positive keys are the entries on the diagonal
+        labels = torch.arange(len(query), device=query.device)
+
+    return F.cross_entropy(logits / temperature, labels, reduction=reduction)
+
+
+def transpose(x):
+    return x.transpose(-2, -1)
+
+
+def normalize(*xs):
+    return [None if x is None else F.normalize(x, dim=-1) for x in xs]
+
+class InfoNCEGeneralized(nn.Module):
+    """
+    Calculates the InfoNCE loss for self-supervised learning.
+    This contrastive loss enforces the embeddings of similar (positive) samples to be close
+        and those of different (negative) samples to be distant.
+    A query embedding is compared with one positive key and with one or more negative keys.
+    References:
+        https://arxiv.org/abs/1807.03748v2
+        https://arxiv.org/abs/2010.05113
+    Args:
+        temperature: Logits are divided by temperature before calculating the cross entropy.
+        reduction: Reduction method applied to the output.
+            Value must be one of ['none', 'sum', 'mean'].
+            See torch.nn.functional.cross_entropy for more details about each option.
+        negative_mode: Determines how the (optional) negative_keys are handled.
+            Value must be one of ['paired', 'unpaired'].
+            If 'paired', then each query sample is paired with a number of negative keys.
+            Comparable to a triplet loss, but with multiple negatives per sample.
+            If 'unpaired', then the set of negative keys are all unrelated to any positive key.
+    Input shape:
+        query: (N, D) Tensor with query samples (e.g. embeddings of the input).
+        positive_key: (N, D) Tensor with positive samples (e.g. embeddings of augmented input).
+        negative_keys (optional): Tensor with negative samples (e.g. embeddings of other inputs)
+            If negative_mode = 'paired', then negative_keys is a (N, M, D) Tensor.
+            If negative_mode = 'unpaired', then negative_keys is a (M, D) Tensor.
+            If None, then the negative keys for a sample are the positive keys for the other samples.
+    Returns:
+         Value of the InfoNCE Loss.
+     Examples:
+        # >>> loss = InfoNCE()
+        # >>> batch_size, num_negative, embedding_size = 32, 48, 128
+        # >>> query = torch.randn(batch_size, embedding_size)
+        # >>> positive_key = torch.randn(batch_size, embedding_size)
+        # >>> negative_keys = torch.randn(num_negative, embedding_size)
+        # >>> output = loss(query, positive_key, negative_keys)
+    """
+
+    def __init__(self, temperature=0.1, reduction='mean', negative_mode='unpaired'):
+        super().__init__()
+        self.temperature = temperature
+        self.reduction = reduction
+        self.negative_mode = negative_mode
+
+    def forward(self, inputs, targets, *args, **kwargs):
+        return info_nce(inputs, kwargs["positive_key"], kwargs["negative_keys"],
+                        temperature=self.temperature,
+                        reduction=self.reduction,
+                        negative_mode=self.negative_mode)
+
+
+def info_nce(query, positive_key, negative_keys=None, temperature=0.1, reduction='mean', negative_mode='unpaired'):
+    # Check input dimensionality.
+
+    # WIP - implement as generalized version with variable num positive keys, negative keys
+
+
+
+    # see above !
+
+    #############################################
+
+    if query.dim() != 2:
+        raise ValueError('<query> must have 2 dimensions.')
+    if positive_key.dim() != 2:
+        raise ValueError('<positive_key> must have 2 dimensions.')
+    if negative_keys is not None:
+        if negative_mode == 'unpaired' and negative_keys.dim() != 2:
+            raise ValueError("<negative_keys> must have 2 dimensions if <negative_mode> == 'unpaired'.")
+        if negative_mode == 'paired' and negative_keys.dim() != 3:
+            raise ValueError("<negative_keys> must have 3 dimensions if <negative_mode> == 'paired'.")
+
+    # Check matching number of samples.
+    if len(query) != len(positive_key):
+        raise ValueError('<query> and <positive_key> must must have the same number of samples.')
+    if negative_keys is not None:
+        if negative_mode == 'paired' and len(query) != len(negative_keys):
+            raise ValueError("If negative_mode == 'paired', then <negative_keys> must have the same number of samples as <query>.")
+
+    # Embedding vectors should have same number of components.
+    if query.shape[-1] != positive_key.shape[-1]:
+        raise ValueError('Vectors of <query> and <positive_key> should have the same number of components.')
+    if negative_keys is not None:
+        if query.shape[-1] != negative_keys.shape[-1]:
+            raise ValueError('Vectors of <query> and <negative_keys> should have the same number of components.')
+
+    # Normalize to unit vectors
+    query, positive_key, negative_keys = normalize(query, positive_key, negative_keys)
+    if negative_keys is not None:
+        # Explicit negative keys
+
+        # Cosine between positive pairs
+        positive_logit = torch.sum(query * positive_key, dim=1, keepdim=True)
+
+        if negative_mode == 'unpaired':
+            # Cosine between all query-negative combinations
+            negative_logits = query @ transpose(negative_keys)
+
+        elif negative_mode == 'paired':
+            query = query.unsqueeze(1)
+            negative_logits = query @ transpose(negative_keys)
+            negative_logits = negative_logits.squeeze(1)
+
+        # First index in last dimension are the positive samples
+        logits = torch.cat([positive_logit, negative_logits], dim=1)
+        labels = torch.zeros(len(logits), dtype=torch.long, device=query.device)
+    else:
+        # Negative keys are implicitly off-diagonal positive keys.
+
+        # Cosine between all combinations
+        logits = query @ transpose(positive_key)
+
+        # Positive keys are the entries on the diagonal
+        labels = torch.arange(len(query), device=query.device)
+
+    return F.cross_entropy(logits / temperature, labels, reduction=reduction)
+
+
+def transpose(x):
+    return x.transpose(-2, -1)
+
+
+def normalize(*xs):
+    return [None if x is None else F.normalize(x, dim=-1) for x in xs]
 
 class Discriminative_contrast_loss(nn.Module):
     def __init__(self, margin_variance, margin_distance, weighting_list):
@@ -579,9 +841,11 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
                 logger.add_scalar(caption_list, self.similarity_loss_item_class_dict[id], epoch)
 
 class Panoptic_spherical_contrastive_flexible_loss(nn.Module):
-    def __init__(self, sphere_ct_contr_loss, loss_radius, radius, cosine_emb_loss_margin=0, sphere_ct_contr_loss_weight=1, radius_loss_weight=1, similarity_loss_weight=1):
+    def __init__(self, sphere_ct_contr_loss, num_pos_embeddings, num_neg_embeddings, loss_radius, radius, cosine_emb_loss_margin=0, sphere_ct_contr_loss_weight=1, radius_loss_weight=1, similarity_loss_weight=1):
         super().__init__()
         self.sphere_ct_contr_loss = Loss_Wrapper(sphere_ct_contr_loss).loss
+        self.num_pos_embeddings = num_pos_embeddings
+        self.num_neg_embeddings = num_neg_embeddings
         self.radius_loss = Loss_Wrapper(loss_radius).loss
         # self.outer_radius_loss = Loss_Wrapper(outer_radius_loss).loss
         self.radius = radius
@@ -598,6 +862,8 @@ class Panoptic_spherical_contrastive_flexible_loss(nn.Module):
     def forward(self, outputs, masks, annotations_data, *args, **kwargs):
         device = outputs.device
 
+        embedding_handler = kwargs["embedding_handler"]
+
         radius_loss = torch.tensor(0, dtype=torch.float32, device=device)
         similarity_loss = torch.tensor(0, dtype=torch.float32, device=device)
 
@@ -609,58 +875,75 @@ class Panoptic_spherical_contrastive_flexible_loss(nn.Module):
         radius_loss_counter = 0
         similarity_loss_counter = 0
 
+        batch_size = outputs.shape[0]
 
         #calc/update mean radius for each class
 ################
         # WIP
 
 ##################
-        if self.radius_loss_weight > float_precision_thr:
-            for unique_cat_id in unique_cat_ids[1:]:  # skip 0
-                unique_cat_id = int(unique_cat_id.item())
 
-                outputs_indx_select = masks[:, 1, :, :] == unique_cat_id
-                outputs_cat_id_embeddings = outputs_reordered_tmp[:, outputs_indx_select]
-                # test = outputs_cat_id_embeddings[:, 0].detach().cpu().numpy()
-                # test2 = np.multiply(test, test.T)
-                # test3 = np.sum(test2)
-                outputs_cat_id_embeddings_norm = torch.norm(outputs_cat_id_embeddings, 2, dim=0)
+        batch_cat_id_embeds = {} #outputs.view(outputs.shape[0], outputs.shape[1], -1)
 
-                cat_id_mean_embedding_local = torch.mean(outputs_cat_id_embeddings_norm, dim=1)
 
-                self.cat_mean_embedding_dict[unique_cat_id] = cat_id_mean_embedding_local
 
-                # radius_sqared_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), radius*radius, device=device)
-                radius_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), self.radius, device=device,
-                                              dtype=torch.float32)
-                # test_mse_loss_mean = torch.nn.MSELoss()
-                # test = test_mse_loss(outputs_cat_id_embeddings_norm, radius_loss_part).detach().cpu().numpy()
-                # test2 = np.mean(test)
-                # test_mean = test_mse_loss_mean(outputs_cat_id_embeddings_norm, radius_loss_part).detach().cpu().numpy()
-                loss_tmp = self.radius_loss(outputs_cat_id_embeddings_norm, radius_loss_part)
-                radius_loss += loss_tmp
 
-                abs_error = torch.abs(outputs_cat_id_embeddings_norm - radius_loss_part).detach().cpu().numpy()
+        if self.sphere_ct_contr_loss_weight > float_precision_thr:
+            for batch_indx in range(batch_size):
+                for unique_cat_id in unique_cat_ids[1:]:  # skip 0
+                    unique_cat_id = int(unique_cat_id.item())
 
-                # abs_error_histogram = np.histogram(abs_error, bins=np.arange())
+                    outputs_indx_select = masks[batch_indx, 1, :, :] == unique_cat_id
+                    outputs_cat_id_embeddings = outputs_reordered_tmp[:, batch_indx, outputs_indx_select]
 
-                np_hist, bins = np.histogram(abs_error, self.abs_radius_err_class_dict["bins"])
+                    batch_cat_id_embeds[unique_cat_id][batch_indx] = outputs_cat_id_embeddings
 
-                self.abs_radius_err_class_dict[unique_cat_id] += np_hist
+            for batch_indx in range(batch_size):
+                for unique_cat_id in unique_cat_ids[1:]:  # skip 0
+                    unique_cat_id = int(unique_cat_id.item())
 
-                self.radius_loss_item_class_dict[unique_cat_id] += loss_tmp.item()
 
-                # loss_items_dict[f"Radius Loss/Part - Cat ID {unique_cat_id}"] = loss_tmp.item()
-                # if categories_dict:
-                #     loss_items_dict[f"Radius Loss/Part - {categories_dict[unique_cat_id].name}"] = loss_tmp.item()
-                # else:
-                #     loss_items_dict[f"Radius Loss/Part - Cat ID {unique_cat_id}"] = loss_tmp.item()
-                # loss_item_radius_key_tmp = f"Radius Loss - Cat ID {unique_cat_id}"
-                # if loss_item_radius_key_tmp not in loss_items_dict:
-                #     loss_items_dict[f"Radius Loss - Cat ID {unique_cat_id}"] = loss_tmp.item()
-                # else:
-                #     loss_items_dict[f"Radius Loss - Cat ID {unique_cat_id}"] += loss_tmp.item()
-                radius_loss_counter += outputs.shape[0]
+                    embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, )
+
+
+
+                    outputs_cat_id_embeddings_norm = torch.norm(outputs_cat_id_embeddings, 2, dim=0)
+
+                    cat_id_mean_embedding_local = torch.mean(outputs_cat_id_embeddings_norm, dim=1)
+
+                    self.cat_mean_embedding_dict[unique_cat_id] = cat_id_mean_embedding_local
+
+                    # radius_sqared_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), radius*radius, device=device)
+                    radius_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), self.radius, device=device,
+                                                  dtype=torch.float32)
+                    # test_mse_loss_mean = torch.nn.MSELoss()
+                    # test = test_mse_loss(outputs_cat_id_embeddings_norm, radius_loss_part).detach().cpu().numpy()
+                    # test2 = np.mean(test)
+                    # test_mean = test_mse_loss_mean(outputs_cat_id_embeddings_norm, radius_loss_part).detach().cpu().numpy()
+                    loss_tmp = self.radius_loss(outputs_cat_id_embeddings_norm, radius_loss_part)
+                    radius_loss += loss_tmp
+
+                    abs_error = torch.abs(outputs_cat_id_embeddings_norm - radius_loss_part).detach().cpu().numpy()
+
+                    # abs_error_histogram = np.histogram(abs_error, bins=np.arange())
+
+                    np_hist, bins = np.histogram(abs_error, self.abs_radius_err_class_dict["bins"])
+
+                    self.abs_radius_err_class_dict[unique_cat_id] += np_hist
+
+                    self.radius_loss_item_class_dict[unique_cat_id] += loss_tmp.item()
+
+                    # loss_items_dict[f"Radius Loss/Part - Cat ID {unique_cat_id}"] = loss_tmp.item()
+                    # if categories_dict:
+                    #     loss_items_dict[f"Radius Loss/Part - {categories_dict[unique_cat_id].name}"] = loss_tmp.item()
+                    # else:
+                    #     loss_items_dict[f"Radius Loss/Part - Cat ID {unique_cat_id}"] = loss_tmp.item()
+                    # loss_item_radius_key_tmp = f"Radius Loss - Cat ID {unique_cat_id}"
+                    # if loss_item_radius_key_tmp not in loss_items_dict:
+                    #     loss_items_dict[f"Radius Loss - Cat ID {unique_cat_id}"] = loss_tmp.item()
+                    # else:
+                    #     loss_items_dict[f"Radius Loss - Cat ID {unique_cat_id}"] += loss_tmp.item()
+                    radius_loss_counter += outputs.shape[0]
 
         # test = outputs.shape[0]
         # radius_loss_counter *= outputs.shape[0] #take batch size into account for normalization

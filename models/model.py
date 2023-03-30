@@ -15,7 +15,7 @@ class Model(nn.Module):
         self.model_configs = general_config["model"]
 
         self.model_architecture_config = dict(self.model_configs["model_architecture"])
-        self.model_architecture_embedding_dims = self.model_architecture_config["embeddings_dims"]
+        self.model_architecture_embedding_dims = self.model_architecture_config["embedding_dims"]
         self.model_architecture_origin = self.model_architecture_config.pop("model_architecture_origin")
         self.model_architecture_name = self.model_architecture_config.pop("model_architecture_name")
 
