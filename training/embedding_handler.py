@@ -207,19 +207,36 @@ class RandomSampler():
         # for negatives
         perc_embedding_storage_samples = random.random()
 
-        num_embedding_storage_samples = np.round(num_neg_embeds * perc_embedding_storage_samples)
+        num_embedding_storage_samples_neg = np.round(num_neg_embeds * perc_embedding_storage_samples)
 
-        num_batch_samples = num_neg_embeds - num_embedding_storage_samples
-
-        ##
-        pos_embeds_indx_list = random.sample(range(batch_embeds[cat_id][batch_index].shape[0]), k=num_pos_embeds)
-        pos_embeds = batch_embeds[cat_id][batch_index][:, pos_embeds_indx_list]
+        num_batch_samples_neg = num_neg_embeds - num_embedding_storage_samples_neg
 
         #
+        num_embedding_storage_samples_pos = np.round(num_pos_embeds * perc_embedding_storage_samples)
+
+        num_batch_samples_pos = num_pos_embeds - num_embedding_storage_samples_pos
+
+        ##
+        pos_embeds = torch.zeros(embedding_dims, num_pos_embeds)
+        pos_embeds_indx_list = random.sample(range(batch_embeds[cat_id][batch_index].shape[0]), k=num_batch_samples_pos)
+        pos_embeds[:num_batch_samples_pos] = batch_embeds[cat_id][batch_index][:, pos_embeds_indx_list]
+
+
+        pos_embeds_indx_list_storage = random.sample(range(embedding_storage.storage.shape[1]), k=num_embedding_storage_samples_pos)
+        pos_embeds[num_batch_samples_pos:] = batch_embeds[cat_id][batch_index][:, pos_embeds_indx_list_storage]
+        #
+
+        num_neg_embeds_per_cat_storage = np.ceil(num_embedding_storage_samples_neg / embedding_storage.num_categories)
+        num_neg_embeds_per_cat_batch = num_neg_embeds - num_neg_embeds_per_cat_storage * embedding_storage.num_categories
 
         neg_embeds = torch.zeros(embedding_dims, num_neg_embeds)
 
-        neg_embeds[:, :num_embedding_storage_samples] = self._sample_pos_embeddings_from_storage(embedding_storage)
+        indx_counter = 0
+        for neg_cat_id in embedding_storage.cat_id2indx_map.keys():
+            neg_embeds[:, num_neg_embeds_per_cat_storage*indx_counter:num_neg_embeds_per_cat_storage*(indx_counter + 1)] = self._sample_pos_embeddings_from_storage(embedding_storage, num_neg_embeds_per_cat_storage, neg_cat_id)
+            indx_counter += 1
+            if indx_counter == 17:
+                break
 
 
 
@@ -289,6 +306,18 @@ class StorageSampler():
         pass
 
 class ImgRegionSampler():
+    def __init__(self):
+        pass
+    def sample_embeddings(self, batch_embeds, embedding_storage, batch_index, cat_id, num_pos_embeds, num_neg_embeds):
+        pass
+
+    def _sample_pos_embeddings_from_storage(self, embedding_storage, num_embedding_storage_samples, cat_id):
+        pass
+
+    def _sample_neg_embeddings_from_storage(self, embedding_storage, num_embedding_storage_samples, cat_id):
+        pass
+
+class DensityBasedSampler():
     def __init__(self):
         pass
     def sample_embeddings(self, batch_embeds, embedding_storage, batch_index, cat_id, num_pos_embeds, num_neg_embeds):

@@ -896,6 +896,7 @@ class Panoptic_spherical_contrastive_flexible_loss(nn.Module):
                     outputs_indx_select = masks[batch_indx, 1, :, :] == unique_cat_id
                     outputs_cat_id_embeddings = outputs_reordered_tmp[:, batch_indx, outputs_indx_select]
 
+                    batch_cat_id_embeds[unique_cat_id] = {}
                     batch_cat_id_embeds[unique_cat_id][batch_indx] = outputs_cat_id_embeddings
 
             for batch_indx in range(batch_size):
@@ -903,7 +904,7 @@ class Panoptic_spherical_contrastive_flexible_loss(nn.Module):
                     unique_cat_id = int(unique_cat_id.item())
 
 
-                    embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, )
+                    pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, )
 
 
 
