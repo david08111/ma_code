@@ -134,7 +134,7 @@ metrics:
         filter_name: "confidence"
         metric_filter_type: "threshold"
         filter_list: [0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-  metric5:
+  metric6:
     metric_type: "false_pos_rate"
     matcher:
       matching_crit: "confidence"

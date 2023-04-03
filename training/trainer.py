@@ -175,7 +175,7 @@ class Net_trainer():
 
     def set_embedding_handler(self, net):
         if self.embedding_handler_config:
-            self.embedding_handler = EmbeddingHandler(self.embedding_handler_config["embedding_storage"], self.embedding_handler_config["embedding_sampler"], self.dataset_category_dict["train_loader"][0], net.model_architecture_embedding_dims, self.device)
+            self.embedding_handler = EmbeddingHandler(self.embedding_handler_config["embedding_storage"], self.embedding_handler_config["embedding_sampler"], self.embedding_handler_config["storage_step_update_sample_size"], self.dataset_category_dict["train_loader"][0], net.model_architecture_embedding_dims, self.device)
 
         else:
             self.embedding_handler = None
@@ -196,6 +196,7 @@ class Net_trainer():
                         outputs, output_items = net(inputs)
 
                         self.embedding_handler.accumulate_mean_embedding(outputs, masks)
+                        self.embedding_handler.step_sample_embeddings2store(outputs, masks)
 
 
 

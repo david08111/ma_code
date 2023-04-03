@@ -56,6 +56,7 @@ training:
   compile: False
   best_eval_mode: "min"
   embedding_handler:
+    storage_step_update_sample_size: 1     #per class base
     embedding_storage:
       memory_bank:
         num_embeddings: 500 # equally distributed to categories
@@ -150,7 +151,7 @@ data:
   datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref_debug.yaml"
   batch_size: 4
   num_workers: 0
-  prefetch_factor: 4
+  prefetch_factor: 4 # currently deprecated
   img_width: 512
   img_height: 256
   load_ram: False # loads data fully into the main memory
