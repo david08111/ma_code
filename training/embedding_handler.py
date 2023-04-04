@@ -72,7 +72,7 @@ class EmbeddingHandler():
         self.embedding_storage.store_embeddings(embeddings)
 
     def sample_embeddings(self, batch_embeds, embedding_storage, batch_index, cat_id, num_pos_embeds, num_neg_embeds):
-        self.embedding_sampler.sample_embeddings(batch_embeds, embedding_storage, batch_index, cat_id, num_pos_embeds, num_neg_embeds)
+        return self.embedding_sampler.sample_embeddings(batch_embeds, embedding_storage, batch_index, cat_id, num_pos_embeds, num_neg_embeds)
 
     def step_sample_embeddings2store(self, outputs, masks):
         sampled_embeddings = self.embedding_sampler.sample_embeddings2store(outputs, masks, self.storage_step_update_sample_size)
@@ -158,7 +158,7 @@ class MemoryBank():
 
     def get_storage_elems(self, cat_id, elem_indx_list):
         cat_id_storage_indx = self.cat_id2indx_map[cat_id]
-        test = self.storage.numpy()
+        # test = self.storage.numpy()
         return self.storage[cat_id_storage_indx, elem_indx_list]
 
     def get_newest_elem_indx(self):
@@ -177,20 +177,52 @@ class MemoryBank():
 
         """
 
+        # for cat_id in new_embeddings_dict:
+        #     num_new_elems = new_embeddings_dict[cat_id].shape[0]
+        #     cat_id_indx = self.cat_id2indx_map[cat_id]
+        #     if num_new_elems + self.cat_id_curr_indx[cat_id_indx] >= self.num_embeds_per_cat:
+        #         num_residual_elems = num_new_elems + self.cat_id_curr_indx[cat_id_indx] - self.num_embeds_per_cat
+        #         self.storage[cat_id_indx, self.cat_id_curr_indx[cat_id_indx]:] = new_embeddings_dict[cat_id][:-num_residual_elems]
+        #
+        #         self.storage[cat_id_indx, :num_residual_elems] = new_embeddings_dict[cat_id][-num_residual_elems:]
+        #
+        #         self.cat_id_curr_indx[cat_id_indx] = num_residual_elems
+        #     else:
+        #         self.storage[cat_id_indx, self.cat_id_curr_indx[cat_id_indx]:(num_new_elems + self.cat_id_curr_indx[cat_id_indx])] = new_embeddings_dict[cat_id]
+        #         # test = self.storage.numpy()
+        #         self.cat_id_curr_indx[cat_id_indx] += num_new_elems
+
         for cat_id in new_embeddings_dict:
             num_new_elems = new_embeddings_dict[cat_id].shape[0]
             cat_id_indx = self.cat_id2indx_map[cat_id]
-            if num_new_elems + self.cat_id_curr_indx[cat_id_indx] >= self.num_embeds_per_cat:
-                num_residual_elems = num_new_elems + self.cat_id_curr_indx[cat_id_indx] - self.num_embeds_per_cat
-                self.storage[cat_id_indx, self.cat_id_curr_indx[cat_id_indx]:] = new_embeddings_dict[cat_id][:-num_residual_elems]
+            if num_new_elems + self.cat_id_curr_indx[cat_id_indx] > self.num_embeds_per_cat:
 
-                self.storage[cat_id_indx, :num_residual_elems] = new_embeddings_dict[cat_id][-num_residual_elems:]
+                if num_new_elems < self.num_embeds_per_cat:
 
-                self.cat_id_curr_indx[cat_id_indx] = num_residual_elems
+                    num_residual_elems = num_new_elems + self.cat_id_curr_indx[cat_id_indx] - self.num_embeds_per_cat
+
+                    if self.cat_id_curr_indx[cat_id_indx] != 0:
+
+                        self.storage[cat_id_indx, self.cat_id_curr_indx[cat_id_indx]:] = new_embeddings_dict[cat_id][:-num_residual_elems]
+
+                        self.storage[cat_id_indx, :num_residual_elems] = new_embeddings_dict[cat_id][-num_residual_elems:]
+
+                        self.cat_id_curr_indx[cat_id_indx] = num_residual_elems
+                    else:
+                        self.storage[cat_id_indx, :] = new_embeddings_dict[cat_id][-self.num_embeds_per_cat:]
+                else:
+                    self.storage[cat_id_indx, :] = new_embeddings_dict[cat_id][-self.num_embeds_per_cat:]
+                    self.cat_id_curr_indx[cat_id_indx] = 0
+
             else:
                 self.storage[cat_id_indx, self.cat_id_curr_indx[cat_id_indx]:(num_new_elems + self.cat_id_curr_indx[cat_id_indx])] = new_embeddings_dict[cat_id]
-                # test = self.storage.numpy()
                 self.cat_id_curr_indx[cat_id_indx] += num_new_elems
+
+            if self.cat_id_curr_indx[cat_id_indx] == self.num_embeds_per_cat:
+                self.cat_id_curr_indx[cat_id_indx] = 0
+
+        # test = self.storage.numpy()
+        # pass
 
     def get_size(self):
         return self.storage.shape
@@ -318,13 +350,14 @@ class RandomSampler():
 
         # pos_embeds[:num_batch_samples_pos] = batch_embeds[cat_id][batch_index][:, pos_embeds_indx_list]
         if num_batch_samples_pos:
-            pos_embeds_indx_list = [random.sample(range(batch_size), k=num_batch_samples_pos), []]
+            non_zero_batch_list = [elem for elem in range(batch_size) if batch_embeds[cat_id][elem].shape[1] != 0]
+            pos_embeds_indx_list = [random.sample(non_zero_batch_list, k=num_batch_samples_pos), []]
             for k in range(len(pos_embeds_indx_list[0])):
-                pos_embeds_indx_list[1].append(random.sample(range(batch_embeds[cat_id][pos_embeds_indx_list[0][k]].shape[1]), k=1))
+                pos_embeds_indx_list[1].append(random.randint(0, batch_embeds[cat_id][pos_embeds_indx_list[0][k]].shape[1] - 1))
             for i in range(len(pos_embeds_indx_list[0])):
-                # test1 = batch_embeds[cat_id][pos_embeds_indx_list[0][i]][:, pos_embeds_indx_list[1][i]][:, 0]
+                # test1 = batch_embeds[cat_id][pos_embeds_indx_list[0][i]][:, pos_embeds_indx_list[1][i]]
                 # test2 = pos_embeds[:, i]
-                pos_embeds[:, i] = batch_embeds[cat_id][pos_embeds_indx_list[0][i]][:, pos_embeds_indx_list[1][i]][:, 0]
+                pos_embeds[:, i] = batch_embeds[cat_id][pos_embeds_indx_list[0][i]][:, pos_embeds_indx_list[1][i]]
 
         if num_embedding_storage_samples_pos:
             # pos_embeds_indx_list_storage = random.sample(range(embedding_storage.get_size()[1]), k=num_embedding_storage_samples_pos)
@@ -350,7 +383,7 @@ class RandomSampler():
         neg_embeds = torch.zeros(embedding_dims, num_neg_embeds)
 
         indx_counter = 0
-        for neg_cat_id in embedding_storage.get_cat_id2indx_map():
+        for neg_cat_id in batch_embeds.keys():   # not all cat_ids in batch
             if neg_cat_id == cat_id:
                 continue
             # neg_embeds[:, num_neg_embeds_per_cat_storage*indx_counter:num_neg_embeds_per_cat_storage*(indx_counter + 1)] = self._sample_embeddings_from_storage(embedding_storage, num_neg_embeds_per_cat_storage, neg_cat_id)
@@ -360,6 +393,8 @@ class RandomSampler():
             neg_embeds[:, num_neg_embeds_per_cat * indx_counter:num_neg_embeds_per_cat * indx_counter + num_neg_embeds_per_cat_storage] = self._sample_embeddings_from_storage(
                 neg_cat_id, embedding_storage, num_neg_embeds_per_cat_storage)
 
+            test3 = neg_embeds.detach().cpu().numpy()
+
             # neg_embeds_indx_list = random.sample(range(batch_embeds[neg_cat_id][batch_index].shape[0]),
             #                                      k=num_neg_embeds_per_cat_batch)
             # neg_embeds[:, num_neg_embeds_per_cat * indx_counter + num_neg_embeds_per_cat_storage:num_neg_embeds_per_cat * (indx_counter + 1)] = batch_embeds[neg_cat_id][batch_index][:, neg_embeds_indx_list]
@@ -367,25 +402,52 @@ class RandomSampler():
             # neg_embeds_indx_list = [random.sample(range(batch_size), k=num_neg_embeds_per_cat_batch),
             #                         random.sample(range(batch_embeds[neg_cat_id][batch_index].shape[0]),
             #                                       k=num_neg_embeds_per_cat_batch)]
-
-            neg_embeds_indx_list = [[random.choice(range(batch_size)) for foo in range(num_neg_embeds_per_cat_batch)], []]
+            non_zero_batch_list = [elem for elem in range(batch_size) if batch_embeds[neg_cat_id][elem].shape[1] != 0]
+            neg_embeds_indx_list = [[random.choice(non_zero_batch_list) for foo in range(num_neg_embeds_per_cat_batch)], []]
             for k in range(len(neg_embeds_indx_list[0])):
+                # #############
+                # test5 = batch_embeds[neg_cat_id][neg_embeds_indx_list[0][k]].shape[1]
+                # if batch_embeds[neg_cat_id][neg_embeds_indx_list[0][k]].shape[1] == 1:
+                #     pass
+                #
+                # ########
+
+                # if batch_embeds[neg_cat_id][neg_embeds_indx_list[0][k]].shape[1] == 0:
+                #     new_batch_elem = None
+                #     for m in random.shuffle(list(range(batch_size))):
+                #         new_batch_elem = m
+                #         if batch_embeds[neg_cat_id][m].shape[1] != 0:
+                #             break
+                #     # new_batch_elem = neg_embeds_indx_list[0][k] + 1 % batch_size
+                #     # while batch_embeds[neg_cat_id][new_batch_elem].shape[1] == 0:
+                #     #     new_batch_elem = neg_embeds_indx_list[0][k] + 1 % batch_size
+                #     neg_embeds_indx_list[0][k] = new_batch_elem
+
                 neg_embeds_indx_list[1].append(
-                    random.sample(range(batch_embeds[neg_cat_id][neg_embeds_indx_list[0][k]].shape[1]), k=1))
+                    random.randint(0, batch_embeds[neg_cat_id][neg_embeds_indx_list[0][k]].shape[1] - 1))
 
             for i in range(len(neg_embeds_indx_list[0])):
-                neg_embeds[:, num_neg_embeds_per_cat * indx_counter + num_neg_embeds_per_cat_storage + i] = batch_embeds[neg_cat_id][neg_embeds_indx_list[0][i]][:, neg_embeds_indx_list[1][i]][:, 0]
+                # test = batch_embeds[neg_cat_id][neg_embeds_indx_list[0][i]][:, neg_embeds_indx_list[1][i]]
+                # test2 = neg_embeds[:, num_neg_embeds_per_cat * indx_counter + num_neg_embeds_per_cat_storage + i]
+                neg_embeds[:, num_neg_embeds_per_cat * indx_counter + num_neg_embeds_per_cat_storage + i] = batch_embeds[neg_cat_id][neg_embeds_indx_list[0][i]][:, neg_embeds_indx_list[1][i]]
 
             indx_counter += 1
             if indx_counter == 17:
                 break
 
-        residual_neg_cat_id = random.sample(list(embedding_storage.get_cat_id2indx_map().keys()), 1)
+        test3 = neg_embeds.detach().cpu().numpy()
+
+        residual_neg_cat_id = random.sample(batch_embeds.keys(), 1)[0]
         for k in range(num_neg_embeds_residual):
-            neg_embeds_indx_list_residual = [random.sample(range(batch_size), k=num_neg_embeds_residual), []]
+            non_zero_batch_list = [elem for elem in range(batch_size) if batch_embeds[neg_cat_id][elem].shape[1] != 0]
+            neg_embeds_indx_list_residual = [[random.choice(non_zero_batch_list) for foo in range(num_neg_embeds_residual)], []]
             for l in range(len(neg_embeds_indx_list_residual[0])):
+                # test = batch_embeds[residual_neg_cat_id][neg_embeds_indx_list_residual[0][l]].shape[1]
                 neg_embeds_indx_list_residual[1].append(
-                    random.sample(range(batch_embeds[residual_neg_cat_id][neg_embeds_indx_list_residual[0][l]].shape[1]), k=1))
+                    random.randint(0, batch_embeds[residual_neg_cat_id][neg_embeds_indx_list_residual[0][l]].shape[1]))
+
+        for l in range(num_neg_embeds_residual - 1, -1, -1):
+            neg_embeds[:, -l] = batch_embeds[residual_neg_cat_id][neg_embeds_indx_list_residual[0][l]][:, neg_embeds_indx_list_residual[1][l]]
 
         return pos_embeds, neg_embeds
 
