@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import numpy as np
 import sys
 import logging
+import random
 from .metrics_new import pq_compute_custom, PQStat
 
 
@@ -341,76 +342,76 @@ class InfoNCE(nn.Module):
         self.negative_mode = negative_mode
 
     def forward(self, inputs, targets, *args, **kwargs):
-        return info_nce(kwargs["query"], kwargs["positive_key"], kwargs["negative_keys"],
+        return info_nce(kwargs["query"].T, kwargs["positive_keys"].T, kwargs["negative_keys"].T,
                         temperature=self.temperature,
                         reduction=self.reduction,
                         negative_mode=self.negative_mode)
 
 
-def info_nce(query, positive_key, negative_keys=None, temperature=0.1, reduction='mean', negative_mode='unpaired'):
-    # Check input dimensionality.
-    if query.dim() != 2:
-        raise ValueError('<query> must have 2 dimensions.')
-    if positive_key.dim() != 2:
-        raise ValueError('<positive_key> must have 2 dimensions.')
-    if negative_keys is not None:
-        if negative_mode == 'unpaired' and negative_keys.dim() != 2:
-            raise ValueError("<negative_keys> must have 2 dimensions if <negative_mode> == 'unpaired'.")
-        if negative_mode == 'paired' and negative_keys.dim() != 3:
-            raise ValueError("<negative_keys> must have 3 dimensions if <negative_mode> == 'paired'.")
+# def info_nce(query, positive_key, negative_keys=None, temperature=0.1, reduction='mean', negative_mode='unpaired'):
+#     # Check input dimensionality.
+#     if query.dim() != 2:
+#         raise ValueError('<query> must have 2 dimensions.')
+#     if positive_key.dim() != 2:
+#         raise ValueError('<positive_key> must have 2 dimensions.')
+#     if negative_keys is not None:
+#         if negative_mode == 'unpaired' and negative_keys.dim() != 2:
+#             raise ValueError("<negative_keys> must have 2 dimensions if <negative_mode> == 'unpaired'.")
+#         if negative_mode == 'paired' and negative_keys.dim() != 3:
+#             raise ValueError("<negative_keys> must have 3 dimensions if <negative_mode> == 'paired'.")
+#
+#     # Check matching number of samples.
+#     if len(query) != len(positive_key):
+#         raise ValueError('<query> and <positive_key> must must have the same number of samples.')
+#     if negative_keys is not None:
+#         if negative_mode == 'paired' and len(query) != len(negative_keys):
+#             raise ValueError("If negative_mode == 'paired', then <negative_keys> must have the same number of samples as <query>.")
+#
+#     # Embedding vectors should have same number of components.
+#     if query.shape[-1] != positive_key.shape[-1]:
+#         raise ValueError('Vectors of <query> and <positive_key> should have the same number of components.')
+#     if negative_keys is not None:
+#         if query.shape[-1] != negative_keys.shape[-1]:
+#             raise ValueError('Vectors of <query> and <negative_keys> should have the same number of components.')
+#
+#     # Normalize to unit vectors
+#     query, positive_key, negative_keys = normalize(query, positive_key, negative_keys)
+#     if negative_keys is not None:
+#         # Explicit negative keys
+#
+#         # Cosine between positive pairs
+#         positive_logit = torch.sum(query * positive_key, dim=1, keepdim=True)
+#
+#         if negative_mode == 'unpaired':
+#             # Cosine between all query-negative combinations
+#             negative_logits = query @ transpose(negative_keys)
+#
+#         elif negative_mode == 'paired':
+#             query = query.unsqueeze(1)
+#             negative_logits = query @ transpose(negative_keys)
+#             negative_logits = negative_logits.squeeze(1)
+#
+#         # First index in last dimension are the positive samples
+#         logits = torch.cat([positive_logit, negative_logits], dim=1)
+#         labels = torch.zeros(len(logits), dtype=torch.long, device=query.device)
+#     else:
+#         # Negative keys are implicitly off-diagonal positive keys.
+#
+#         # Cosine between all combinations
+#         logits = query @ transpose(positive_key)
+#
+#         # Positive keys are the entries on the diagonal
+#         labels = torch.arange(len(query), device=query.device)
+#
+#     return F.cross_entropy(logits / temperature, labels, reduction=reduction)
 
-    # Check matching number of samples.
-    if len(query) != len(positive_key):
-        raise ValueError('<query> and <positive_key> must must have the same number of samples.')
-    if negative_keys is not None:
-        if negative_mode == 'paired' and len(query) != len(negative_keys):
-            raise ValueError("If negative_mode == 'paired', then <negative_keys> must have the same number of samples as <query>.")
-
-    # Embedding vectors should have same number of components.
-    if query.shape[-1] != positive_key.shape[-1]:
-        raise ValueError('Vectors of <query> and <positive_key> should have the same number of components.')
-    if negative_keys is not None:
-        if query.shape[-1] != negative_keys.shape[-1]:
-            raise ValueError('Vectors of <query> and <negative_keys> should have the same number of components.')
-
-    # Normalize to unit vectors
-    query, positive_key, negative_keys = normalize(query, positive_key, negative_keys)
-    if negative_keys is not None:
-        # Explicit negative keys
-
-        # Cosine between positive pairs
-        positive_logit = torch.sum(query * positive_key, dim=1, keepdim=True)
-
-        if negative_mode == 'unpaired':
-            # Cosine between all query-negative combinations
-            negative_logits = query @ transpose(negative_keys)
-
-        elif negative_mode == 'paired':
-            query = query.unsqueeze(1)
-            negative_logits = query @ transpose(negative_keys)
-            negative_logits = negative_logits.squeeze(1)
-
-        # First index in last dimension are the positive samples
-        logits = torch.cat([positive_logit, negative_logits], dim=1)
-        labels = torch.zeros(len(logits), dtype=torch.long, device=query.device)
-    else:
-        # Negative keys are implicitly off-diagonal positive keys.
-
-        # Cosine between all combinations
-        logits = query @ transpose(positive_key)
-
-        # Positive keys are the entries on the diagonal
-        labels = torch.arange(len(query), device=query.device)
-
-    return F.cross_entropy(logits / temperature, labels, reduction=reduction)
-
-
-def transpose(x):
-    return x.transpose(-2, -1)
-
-
-def normalize(*xs):
-    return [None if x is None else F.normalize(x, dim=-1) for x in xs]
+#
+# def transpose(x):
+#     return x.transpose(-2, -1)
+#
+#
+# def normalize(*xs):
+#     return [None if x is None else F.normalize(x, dim=-1) for x in xs]
 
 class InfoNCEGeneralized(nn.Module):
     """
@@ -858,13 +859,41 @@ class Panoptic_spherical_contrastive_flexible_loss(nn.Module):
 
         self.cat_mean_embedding_dict = {}
 
+        self.radius_loss_counter = 0
+
+        self.similarity_loss_counter = 0
+
+        #######
+        radius_granularity = 10
+
+        self.bin_elems = 11
+        self.bin_step = self.radius * radius_granularity
+        bin_roi_bound = self.bin_step * self.bin_elems
+        bin_max_range = self.radius * 1000
+        bins = np.arange(0, bin_roi_bound, self.bin_step).tolist() + [bin_max_range]
+        bins = np.array(bins, dtype=np.float64)
+
+        # self.abs_radius_err_class_dict = {elem: np.zeros(bin_elems) for elem in self.cat_id_radius_order_map_list}
+        self.abs_radius_err_class_dict = {}
+        self.abs_radius_err_class_dict["bins"] = bins
+
+        # self.radius_loss_item_class_dict = {elem: 0 for elem in self.cat_id_radius_order_map_list}
+        self.radius_loss_item_class_dict = {}
+        self.radius_loss_item_class_dict["all"] = 0
+
+        self.similarity_loss_item_class_dict = {}
+        self.similarity_loss_item_class_dict["all"] = 0
+
+        self.ct_loss_item_class_dict = {}
+        self.ct_loss_item_class_dict["all"] = 0
+
 
     def forward(self, outputs, masks, annotations_data, *args, **kwargs):
         device = outputs.device
 
         embedding_handler = kwargs["embedding_handler"]
 
-        radius_loss = torch.tensor(0, dtype=torch.float32, device=device)
+        # pos_loss = torch.tensor(0, dtype=torch.float32, device=device)
         similarity_loss = torch.tensor(0, dtype=torch.float32, device=device)
 
         unique_cat_ids = torch.unique(masks[:, 1, :, :])  # skip segment_id=0
@@ -877,94 +906,282 @@ class Panoptic_spherical_contrastive_flexible_loss(nn.Module):
 
         batch_size = outputs.shape[0]
 
-        #calc/update mean radius for each class
-################
-        # WIP
+        radius_loss_part = torch.tensor(0, dtype=torch.float32, device=device)
 
-##################
+        ct_loss_part = torch.tensor(0, dtype=torch.float32, device=device)
 
-        batch_cat_id_embeds = {} #outputs.view(outputs.shape[0], outputs.shape[1], -1)
+        # batch_cat_id_embeds = {} #outputs.view(outputs.shape[0], outputs.shape[1], -1)
 
-
-
+        num_categories = len(embedding_handler.cls_mean_embeddings.keys())
+        if len(self.abs_radius_err_class_dict) != num_categories + 1 or len(self.radius_loss_item_class_dict) != num_categories + 1 \
+                or len(self.similarity_loss_item_class_dict) != num_categories + 1 or len(self.ct_loss_item_class_dict) != num_categories + 1:
+            for cat_id in embedding_handler.cls_mean_embeddings.keys():
+                self.abs_radius_err_class_dict[cat_id] = np.zeros(self.bin_elems)
+                self.radius_loss_item_class_dict[cat_id] = 0
+                self.similarity_loss_item_class_dict[cat_id] = 0
+                self.ct_loss_item_class_dict[cat_id] = 0
 
         if self.sphere_ct_contr_loss_weight > float_precision_thr:
             # for batch_indx in range(batch_size):
             #     for unique_cat_id in unique_cat_ids[1:]:  # skip 0
 
+            # for unique_cat_id in unique_cat_ids[1:]:  # skip 0
+            #     unique_cat_id = int(unique_cat_id.item())
+            #     batch_cat_id_embeds[unique_cat_id] = {}
+            #     for batch_indx in range(batch_size):
+            #
+            #         outputs_indx_select = masks[batch_indx, 1, :, :] == unique_cat_id
+            #         outputs_cat_id_embeddings = outputs_reordered_tmp[:, batch_indx, outputs_indx_select]
+            #
+            #
+            #         batch_cat_id_embeds[unique_cat_id][batch_indx] = outputs_cat_id_embeddings
+
+            # for batch_indx in range(batch_size):
             for unique_cat_id in unique_cat_ids[1:]:  # skip 0
                 unique_cat_id = int(unique_cat_id.item())
-                batch_cat_id_embeds[unique_cat_id] = {}
-                for batch_indx in range(batch_size):
 
-                    outputs_indx_select = masks[batch_indx, 1, :, :] == unique_cat_id
-                    outputs_cat_id_embeddings = outputs_reordered_tmp[:, batch_indx, outputs_indx_select]
+                outputs_indx_select = masks[:, 1, :, :] == unique_cat_id
+                outputs_cat_id_embeddings = outputs_reordered_tmp[:, outputs_indx_select]
+
+                # # pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, self.num_pos_embeddings, self.num_neg_embeddings)
+                # pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, self.num_neg_embeddings)
+                #
+                # # for i in range(pos_embeddings.shape[1]):
+                # #     query = torch.unsqueeze(pos_embeddings[:, i], dim=1)
+                # #
+                # #     pos_embeddings_indices = list(range(pos_embeddings.shape[1]))
+                # #     pos_embeddings_indices.remove(i)
+                # #     pos_embed_indx_list = random.choices(pos_embeddings_indices, k=self.num_pos_embeddings)
+                # #     pos_embeds = pos_embeddings[:, pos_embed_indx_list]
+                # #     self.sphere_ct_contr_loss(None, None, query=query, positive_keys=pos_embeds, negative_keys=neg_embeddings)
+                # query_indx_mix = torch.randperm(pos_embeddings.shape[1])
+                # query_embeds = pos_embeddings[:, query_indx_mix]
+                #
+                # ct_loss_part = self.sphere_ct_contr_loss(None, None, query=query_embeds, positive_keys=pos_embeddings,
+                #                           negative_keys=neg_embeddings)
+
+                # pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, self.num_pos_embeddings, self.num_neg_embeddings)
+                # pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, self.num_neg_embeddings)
+                # query_embeddings = torch.concat([batch_cat_id_embeds[unique_cat_id][b] for b in range(batch_size)], dim=1)
+
+                query_embeddings = outputs_cat_id_embeddings
+
+                pos_embeddings = embedding_handler.cls_mean_embeddings[unique_cat_id].repeat(query_embeddings.shape[1], 1).T
+
+                neg_embeddings = torch.stack([embedding_handler.cls_mean_embeddings[tmp_cat_id] for tmp_cat_id in embedding_handler.cls_mean_embeddings.keys() if tmp_cat_id != unique_cat_id], dim=1)
+                # query_indx_mix = torch.randperm(pos_embeddings.shape[1])
+                # query_embeds = pos_embeddings[:, query_indx_mix]
+
+                ct_loss_part += self.sphere_ct_contr_loss(None, None, query=query_embeddings, positive_keys=pos_embeddings,
+                                          negative_keys=neg_embeddings)
+
+                #######
 
 
-                    batch_cat_id_embeds[unique_cat_id][batch_indx] = outputs_cat_id_embeddings
+                outputs_cat_id_mean_embeddings_radius = torch.norm(torch.sub(outputs_cat_id_embeddings, pos_embeddings), 2, dim=0)
 
-            for batch_indx in range(batch_size):
-                for unique_cat_id in unique_cat_ids[1:]:  # skip 0
+                radius_label = torch.full(outputs_cat_id_mean_embeddings_radius.shape, self.radius, device=device)
+
+                radius_loss_part += self.radius_loss(outputs_cat_id_mean_embeddings_radius, radius_label)
+
+
+                ###### radius hist
+                abs_error = torch.abs(outputs_cat_id_mean_embeddings_radius - radius_label).detach().cpu().numpy()
+
+                # abs_error_histogram = np.histogram(abs_error, bins=np.arange())
+
+                np_hist, bins = np.histogram(abs_error, self.abs_radius_err_class_dict["bins"])
+
+                self.abs_radius_err_class_dict[unique_cat_id] += np_hist
+
+                self.radius_loss_item_class_dict[unique_cat_id] += radius_loss_part.item()
+
+                self.ct_loss_item_class_dict[unique_cat_id] += ct_loss_part.item()
+
+                ##########
+
+                radius_loss_counter += outputs.shape[0]
+
+
+
+
+        if self.similarity_loss_weight > float_precision_thr:
+            for b in range(batch_size):
+
+                inst_discr_masks = masks_reordered_tmp[:2, b, masks[b, 2, :, :] == True]
+
+                unique_cat_ids = torch.unique(inst_discr_masks[1, :])
+
+                for unique_cat_id in unique_cat_ids:
                     unique_cat_id = int(unique_cat_id.item())
+                    segments_id_data = masks_reordered_tmp[:, b,
+                                       masks_reordered_tmp[1, b, :, :] == unique_cat_id]
 
+                    unique_segment_ids = torch.unique(segments_id_data[0, :])
 
-                    pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, self.num_pos_embeddings, self.num_neg_embeddings)
+                    segment_id_embeddings_dict = {}
+                    # gather embeddings and calculate cosineembeddingloss with itself
 
+                    for unique_segment_id in unique_segment_ids:
+                        segment_id_embeddings = outputs[b, :,
+                                                masks_reordered_tmp[0, b, :, :] == unique_segment_id]
+                        segment_id_embeddings_dict[unique_segment_id.item()] = segment_id_embeddings
 
+                        segment_id_embeddings = torch.div(segment_id_embeddings,
+                                                          torch.norm(segment_id_embeddings, 2,
+                                                                     dim=0) + 0.000001)
+                        dot_product_embeddings = torch.matmul(torch.transpose(segment_id_embeddings, 0, 1),
+                                                              segment_id_embeddings)
 
-                    outputs_cat_id_embeddings_norm = torch.norm(outputs_cat_id_embeddings, 2, dim=0)
+                        dot_product_embeddings = torch.triu(dot_product_embeddings)
+                        # test = dot_product_embeddings.nonzero(as_tuple=True)
+                        dot_product_embeddings = dot_product_embeddings[
+                            dot_product_embeddings.nonzero(as_tuple=True)]
+                        dot_product_embeddings = torch.mul(dot_product_embeddings, -1)
+                        dot_product_embeddings = torch.add(dot_product_embeddings, 1)
+                        dot_product_embeddings_mean = torch.mean(dot_product_embeddings)
+                        similarity_loss += dot_product_embeddings_mean
+                        similarity_loss_counter += 1
 
-                    cat_id_mean_embedding_local = torch.mean(outputs_cat_id_embeddings_norm, dim=1)
+                        self.similarity_loss_item_class_dict[unique_cat_id] += similarity_loss.item()
 
-                    self.cat_mean_embedding_dict[unique_cat_id] = cat_id_mean_embedding_local
+                        # loss_item_similarity_key_tmp = f"Similarity Loss/Part - Cat ID - {unique_cat_id} - Similar"
+                        # if loss_item_similarity_key_tmp not in loss_items_dict:
+                        #     loss_items_dict[loss_item_similarity_key_tmp] = similarity_loss.item()
+                        # else:
+                        #     loss_items_dict[loss_item_similarity_key_tmp] += similarity_loss.item()
 
-                    # radius_sqared_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), radius*radius, device=device)
-                    radius_loss_part = torch.full(outputs_cat_id_embeddings_norm.size(), self.radius, device=device,
-                                                  dtype=torch.float32)
-                    # test_mse_loss_mean = torch.nn.MSELoss()
-                    # test = test_mse_loss(outputs_cat_id_embeddings_norm, radius_loss_part).detach().cpu().numpy()
-                    # test2 = np.mean(test)
-                    # test_mean = test_mse_loss_mean(outputs_cat_id_embeddings_norm, radius_loss_part).detach().cpu().numpy()
-                    loss_tmp = self.radius_loss(outputs_cat_id_embeddings_norm, radius_loss_part)
-                    radius_loss += loss_tmp
+                    for i in range(unique_segment_ids.shape[0] - 1):
+                        unique_segment_id = unique_segment_ids[i]
+                        for neg_unique_segment_id in unique_segment_ids[i + 1:]:
+                            curr_embedding = segment_id_embeddings_dict[unique_segment_id.item()]
+                            neg_embedding = segment_id_embeddings_dict[neg_unique_segment_id.item()]
 
-                    abs_error = torch.abs(outputs_cat_id_embeddings_norm - radius_loss_part).detach().cpu().numpy()
+                            curr_embedding = torch.div(curr_embedding,
+                                                       torch.norm(curr_embedding, 2, dim=0) + 0.000001)
+                            neg_embedding = torch.div(neg_embedding,
+                                                      torch.norm(neg_embedding, 2, dim=0) + 0.000001)
 
-                    # abs_error_histogram = np.histogram(abs_error, bins=np.arange())
+                            dot_product_embeddings = torch.matmul(torch.transpose(curr_embedding, 0, 1),
+                                                                  neg_embedding)
 
-                    np_hist, bins = np.histogram(abs_error, self.abs_radius_err_class_dict["bins"])
+                            dot_product_embeddings = torch.triu(dot_product_embeddings)
+                            # test = dot_product_embeddings.nonzero(as_tuple=True)
+                            dot_product_embeddings = dot_product_embeddings[
+                                dot_product_embeddings.nonzero(as_tuple=True)]
+                            dot_product_embeddings = torch.add(dot_product_embeddings,
+                                                               -self.cosine_emb_loss_margin)
+                            dot_product_embeddings = torch.clamp(dot_product_embeddings, min=0)
+                            dot_product_embeddings_mean = torch.mean(dot_product_embeddings)
 
-                    self.abs_radius_err_class_dict[unique_cat_id] += np_hist
+                            similarity_loss += dot_product_embeddings_mean
+                            similarity_loss_counter += 1
 
-                    self.radius_loss_item_class_dict[unique_cat_id] += loss_tmp.item()
+                            self.similarity_loss_item_class_dict[unique_cat_id] += similarity_loss.item()
 
-                    # loss_items_dict[f"Radius Loss/Part - Cat ID {unique_cat_id}"] = loss_tmp.item()
-                    # if categories_dict:
-                    #     loss_items_dict[f"Radius Loss/Part - {categories_dict[unique_cat_id].name}"] = loss_tmp.item()
-                    # else:
-                    #     loss_items_dict[f"Radius Loss/Part - Cat ID {unique_cat_id}"] = loss_tmp.item()
-                    # loss_item_radius_key_tmp = f"Radius Loss - Cat ID {unique_cat_id}"
-                    # if loss_item_radius_key_tmp not in loss_items_dict:
-                    #     loss_items_dict[f"Radius Loss - Cat ID {unique_cat_id}"] = loss_tmp.item()
-                    # else:
-                    #     loss_items_dict[f"Radius Loss - Cat ID {unique_cat_id}"] += loss_tmp.item()
-                    radius_loss_counter += outputs.shape[0]
+                            # loss_item_similarity_key_tmp = f"Similarity Loss/Part - Cat ID - {unique_cat_id} - Disimilar"
+                            # if loss_item_similarity_key_tmp not in loss_items_dict:
+                            #     loss_items_dict[loss_item_similarity_key_tmp] = similarity_loss.item()
+                            # else:
+                            #     loss_items_dict[loss_item_similarity_key_tmp] += similarity_loss.item()
 
-        # test = outputs.shape[0]
-        # radius_loss_counter *= outputs.shape[0] #take batch size into account for normalization
+        self.radius_loss_item_class_dict["all"] += radius_loss_part.item()
+        self.similarity_loss_item_class_dict["all"] += similarity_loss.item()
+        self.ct_loss_item_class_dict["all"] += ct_loss_part.item()
 
-        ### instance discrimination part
+        if radius_loss_counter > 0:
+            radius_loss_part /= radius_loss_counter
+            ct_loss_part /= radius_loss_counter
 
-        # reduce amount of masks with "isthing" part from masks - B x H x W x (segment_id, cat_id, isthing)
+            # for key in loss_items_dict.keys():
+            #     if "Radius" in key:
+            #         loss_items_dict[key] /= radius_loss_counter
 
-        batch_size = masks.shape[0]
+        if similarity_loss_counter > 0:
+            similarity_loss /= similarity_loss_counter
 
+            # for key in loss_items_dict.keys():
+            #     if "Similarity" in key:
+            #         loss_items_dict[key] /= similarity_loss_counter
+
+        self.radius_loss_counter += radius_loss_counter
+        self.similarity_loss_counter += similarity_loss_counter
+
+        total_loss = self.radius_loss_weight * radius_loss_part + self.similarity_loss_weight * similarity_loss + self.sphere_ct_contr_loss_weight * ct_loss_part
+
+        # return total_loss, loss_items_dict
+        return total_loss
 
     def process_end_batch(self):
-        pass
+        for key in self.radius_loss_item_class_dict:
+            self.radius_loss_item_class_dict[key] /= self.radius_loss_counter
+
+        for key in self.ct_loss_item_class_dict:
+            self.ct_loss_item_class_dict[key] /= self.radius_loss_counter
+
+        for key in self.similarity_loss_item_class_dict:
+            self.similarity_loss_item_class_dict[key] /= self.radius_loss_counter
 
     def log(self, logger, name, epoch, *args, **kwargs):
-        pass
+        if "categories" in kwargs:
+            if all(x == kwargs["categories"][0] for x in kwargs["categories"]):
+                categories_dict = kwargs["categories"][0]
+            else:
+                raise ValueError(
+                    "Implementation doesnt support multiple dataset category associations!")  # conversion to unified categories should work
+        else:
+            categories_dict = None
+
+        caption_name = logger.get_caption_from_name(name)
+
+        self.abs_radius_err_class_dict["bins"][-1] = self.abs_radius_err_class_dict["bins"][-2] + self.bin_step
+
+        ##### radius abs err histogram
+        for id in self.abs_radius_err_class_dict:
+            if id == "bins":
+                continue
+            caption = f"{caption_name}/Abs Radius Error/Part - {categories_dict[id]['name']}"
+            logger.add_text(f"{caption} - {self.abs_radius_err_class_dict[id]}", logging.INFO, epoch)
+            caption_list = name + [f"Abs Radius Error/Part - {categories_dict[id]['name']}"]
+            logger.add_histogram(caption_list, self.abs_radius_err_class_dict[id],
+                                 self.abs_radius_err_class_dict["bins"], epoch)
+        ####
+
+        for id in self.radius_loss_item_class_dict:
+            if id == "all":
+                caption = f"{caption_name}/Item - Radius Loss"
+                logger.add_text(f"{caption} - {self.radius_loss_item_class_dict[id]}", logging.INFO, epoch)
+                caption_list = name + ["Item - Radius Loss"]
+                logger.add_scalar(caption_list, self.radius_loss_item_class_dict[id], epoch)
+            else:
+                caption = f"{caption_name}/Item - Radius Loss/Part - {categories_dict[id]['name']}"
+                logger.add_text(f"{caption} - {self.radius_loss_item_class_dict[id]}", logging.INFO, epoch)
+                caption_list = name + ["Item - Radius Loss", f"Part - {categories_dict[id]['name']}"]
+                logger.add_scalar(caption_list, self.radius_loss_item_class_dict[id], epoch)
+
+        for id in self.ct_loss_item_class_dict:
+            if id == "all":
+                caption = f"{caption_name}/Item - Contrastive Loss"
+                logger.add_text(f"{caption} - {self.ct_loss_item_class_dict[id]}", logging.INFO, epoch)
+                caption_list = name + ["Item - Contrastive Loss"]
+                logger.add_scalar(caption_list, self.ct_loss_item_class_dict[id], epoch)
+            else:
+                caption = f"{caption_name}/Item - Contrastive Loss/Part - {categories_dict[id]['name']}"
+                logger.add_text(f"{caption} - {self.ct_loss_item_class_dict[id]}", logging.INFO, epoch)
+                caption_list = name + ["Item - Contrastive Loss", f"Part - {categories_dict[id]['name']}"]
+                logger.add_scalar(caption_list, self.ct_loss_item_class_dict[id], epoch)
+
+        for id in self.similarity_loss_item_class_dict:
+            if id == "all":
+                caption = f"{caption_name}/Item - Similarity Loss"
+                logger.add_text(f"{caption} - {self.similarity_loss_item_class_dict[id]}", logging.INFO, epoch)
+                caption_list = name + ["Item - Similarity Loss"]
+                logger.add_scalar(caption_list, self.similarity_loss_item_class_dict[id], epoch)
+            else:
+                caption = f"{caption_name}/Item - Similarity Loss/Part - {categories_dict[id]['name']}"
+                logger.add_text(f"{caption} - {self.similarity_loss_item_class_dict[id]}", logging.INFO, epoch)
+                caption_list = name + ["Item - Similarity Loss", f"Part - {categories_dict[id]['name']}"]
+                logger.add_scalar(caption_list, self.similarity_loss_item_class_dict[id], epoch)
 
 class Panoptic_spherical_contrastive_flexible_hinge_loss(nn.Module):
     def __init__(self, inner_radius_loss, outer_radius_loss, radius, contr_hinge_dist, cosine_emb_loss_margin=0, radius_loss_weight=0.5, similarity_loss_weight=0.5):
