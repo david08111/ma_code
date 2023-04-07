@@ -44,15 +44,15 @@ class Model(nn.Module):
 
         return output, output_item_dict
 
-    def create_output_from_embeddings(self, outputs, dataset_category_list, annotations_data):
+    def create_output_from_embeddings(self, outputs, dataset_category_list, annotations_data, *args, **kwargs):
 
-        return self.output_creator_list[0].create_output_from_embeddings(outputs, dataset_category_list, annotations_data)
+        return self.output_creator_list[0].create_output_from_embeddings(outputs, dataset_category_list, annotations_data, *args, **kwargs)
 
 
-    def create_auxiliary_output_from_embeddings(self, outputs, dataset_category_list, annotations_data):
+    def create_auxiliary_output_from_embeddings(self, outputs, dataset_category_list, annotations_data, *args, **kwargs):
         output_list = []
         for elem in self.output_creator_list[1:]:
-            output_list.append([elem.create_association_from_embeddings(outputs, dataset_category_list, annotations_data), elem.name])
+            output_list.append([elem.create_association_from_embeddings(outputs, dataset_category_list, annotations_data, *args, **kwargs), elem.name])
         return output_list
 
     # def accumulate_mean_embedding(self, outputs, masks, annotations_data, *args, **kwargs):

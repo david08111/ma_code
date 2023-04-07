@@ -32,10 +32,10 @@ optimizer:
     lr: 0.001
     eps: 0.00000001
     weight_decay: 0
-#    warmup:
-#      start_lr: 0.00001
-#      end_lr: 0.001
-#      num_steps: 3000
+    warmup:
+      start_lr: 0.00001
+      end_lr: 0.001
+      num_steps: 3000
 
 scheduler:
   reduce_on_plateau:
@@ -46,7 +46,7 @@ scheduler:
     cooldown: 20
 
 training:
-  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/test_debug23"
+  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/test_debug24"
 #  gpu_ids: [0]
   save_freq: 10
   metrics_calc_freq: 10
@@ -90,7 +90,7 @@ loss:
       loss_radius:
         #        reverse_huber_threshold: { }
         radius_cross_entropy_mse: { }
-      radius: 10
+      radius: 1
       sphere_ct_contr_loss_weight: 0.5
       radius_loss_weight: 0.5
       similarity_loss_weight: 0
@@ -124,7 +124,7 @@ loss:
       loss_radius:
         #        reverse_huber_threshold: { }
         radius_cross_entropy_mse: { }
-      radius: 10
+      radius: 1
       sphere_ct_contr_loss_weight: 0.5
       radius_loss_weight: 0.5
       similarity_loss_weight: 0
@@ -148,7 +148,7 @@ loss:
 
 
 data:
-  datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref_debug.yaml"
+  datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref_debug_bigger.yaml"
   batch_size: 4
   num_workers: 0
   prefetch_factor: 4 # currently deprecated
@@ -159,7 +159,7 @@ data:
 
 logging:
   name: "LOG"
-  save_path: "/work/scratch/dziuba/ma_code_runs/logs/test_debug3"
+  save_path: "/work/scratch/dziuba/ma_code_runs/logs/test_debug24"
   num_log_img: 5
   log_graph: False
   wandb_config:
@@ -172,6 +172,11 @@ logging:
 
 #  img_log_freq: 10 # set by metrics_calc_freq
 #  num_log_img: 5
+
+
+
+
+
 
 
 

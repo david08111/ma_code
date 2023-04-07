@@ -354,7 +354,8 @@ class MultiSphereAssociatorFlexible():
         radius_lw_bd = max(0, self.radius - abs(self.radius_association_margin))
         radius_up_bd = self.radius + abs(self.radius_association_margin)
 
-        cls_mean_embeddings = kwargs["cls_mean_embeddings"]
+        embedding_handler = kwargs["embedding_handler"]
+        cls_mean_embeddings = embedding_handler.cls_mean_embeddings
 
         for b in range(batch_size):
             # outputs_emb_radius = torch.norm(outputs, 2, dim=1)
@@ -371,7 +372,7 @@ class MultiSphereAssociatorFlexible():
 
                 cat_id_mean_emb_output_dims = cat_id_mean_emb.repeat(1, no_spatial_embedds).view(cat_id_mean_emb.shape[0], height, width)
 
-                dist_mean_emb2output_emb = torch.norm(outputs[b] - cat_id_mean_emb_output_dims, 2, dim=0)
+                dist_mean_emb2output_emb = torch.norm(torch.sub(outputs[b], cat_id_mean_emb_output_dims), 2, dim=0)
 
                 outputs_rad_lw_bd_indx = dist_mean_emb2output_emb > radius_lw_bd
                 outputs_rad_up_bd_indx = dist_mean_emb2output_emb < radius_up_bd
@@ -532,10 +533,10 @@ class RadiusAssociator():
     def __init__(self, mean_origin=False):
         self.mean_origin = mean_origin
 
-    def create_output_from_embeddings(self, outputs, dataset_category_list, annotations_data):
+    def create_output_from_embeddings(self, outputs, dataset_category_list, annotations_data, *args, **kwargs):
         raise NameError("Not implemented yet!")
 
-    def create_association_from_embeddings(self, outputs, dataset_category_list, annotations_data):
+    def create_association_from_embeddings(self, outputs, dataset_category_list, annotations_data, *args, **kwargs):
         return torch.unsqueeze(torch.norm(outputs, 2, dim=1), 1)
 
 class ClusteringWrapper():
