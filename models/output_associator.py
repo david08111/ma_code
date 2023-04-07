@@ -366,6 +366,9 @@ class MultiSphereAssociatorFlexible():
             id_gen = IdGenerator(
                 dataset_category)  # for every image unique - (reduces amount of to distinguisable colors)
 
+            occupied_pixel_output_mask = torch.zeros((height, width),
+                                        dtype=torch.bool, device=outputs.device)
+
             for cat_id in cls_mean_embeddings.keys():
 
                 cat_id_mean_emb = cls_mean_embeddings[cat_id]
@@ -377,6 +380,10 @@ class MultiSphereAssociatorFlexible():
                 outputs_rad_lw_bd_indx = dist_mean_emb2output_emb > radius_lw_bd
                 outputs_rad_up_bd_indx = dist_mean_emb2output_emb < radius_up_bd
                 outputs_rad_mask = torch.logical_and(outputs_rad_lw_bd_indx, outputs_rad_up_bd_indx)
+
+                outputs_rad_mask = torch.logical_and(outputs_rad_mask, torch.logical_not(occupied_pixel_output_mask))
+
+                occupied_pixel_output_mask = torch.logical_or(outputs_rad_mask, occupied_pixel_output_mask)
 
                 area = torch.count_nonzero(outputs_rad_mask)
                 if area.item() == 0:
@@ -492,6 +499,15 @@ class MultiSphereAssociatorFlexible():
             annotations.append({'image_id': annotations_data[b]["image_id"],
                                 # 'file_name': file_name,
                                 "segments_info": segm_info})
+        # ##############
+        # from panopticapi.utils import get_traceback, rgb2id
+        #
+        # final_output_mask_test = rgb2id(np.moveaxis(final_output_mask.detach().cpu().numpy()[0], 0, 2))
+        #
+        # test = np.unique(final_output_mask_test, return_counts=True)
+        #
+        # ######################
+
 
         return final_output_mask, annotations
 

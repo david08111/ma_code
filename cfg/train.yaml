@@ -46,13 +46,13 @@ scheduler:
     cooldown: 20
 
 training:
-  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/test_debug24"
+  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/test_debug4"
 #  gpu_ids: [0]
   save_freq: 10
   metrics_calc_freq: 10
   num_epochs: 100
   use_cpp: False
-  AMP: True
+  AMP: False
   compile: False
   best_eval_mode: "min"
   embedding_handler:
@@ -81,12 +81,11 @@ training:
 ##      hypsph_radius_map_list: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190] # (optional) specify for specific mapping of indx from cat in "cat_id_radius_order_map_list" to radius
 loss:
   train_loss:
-    spherical_contrast_panoptic_flexible:
+    spherical_contrast_panoptic_flexible: #_neg_batch:
       sphere_ct_contr_loss:
         info_nce:
           temperature: 0.1
       num_pos_embeddings: 1
-      num_neg_embeddings: 500
       loss_radius:
         #        reverse_huber_threshold: { }
         radius_cross_entropy_mse: { }
@@ -115,12 +114,11 @@ loss:
 #      cosine_emb_loss_margin: -1
 ##      hypsph_radius_map_list: [ 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190 ] # (optional) specify for specific mapping of indx from cat in "cat_id_radius_order_map_list" to radius
   val_loss:
-    spherical_contrast_panoptic_flexible:
+    spherical_contrast_panoptic_flexible: #_neg_batch:
       sphere_ct_contr_loss:
         info_nce:
           temperature: 0.1
       num_pos_embeddings: 1
-      num_neg_embeddings: 500
       loss_radius:
         #        reverse_huber_threshold: { }
         radius_cross_entropy_mse: { }
@@ -150,7 +148,7 @@ loss:
 data:
   datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref_debug_bigger.yaml"
   batch_size: 4
-  num_workers: 0
+  num_workers: 4
   prefetch_factor: 4 # currently deprecated
   img_width: 512
   img_height: 256
@@ -159,7 +157,7 @@ data:
 
 logging:
   name: "LOG"
-  save_path: "/work/scratch/dziuba/ma_code_runs/logs/test_debug24"
+  save_path: "/work/scratch/dziuba/ma_code_runs/logs/test_debug4"
   num_log_img: 5
   log_graph: False
   wandb_config:

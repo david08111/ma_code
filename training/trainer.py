@@ -490,7 +490,7 @@ class Net_trainer():
         for epoch in range(self.start_epoch, self.max_epoch + 1):
             # time_start = time.time()
             tqdm.write("Epoch " + str(epoch) + ":")
-            tqdm.write("-" * 50)
+            tqdm.write("-" * 70)
             # print("\nEpoch " + str(epoch) + ":")
             # print("Epoch {}:".format(epoch))
             # print("-" * 50)
