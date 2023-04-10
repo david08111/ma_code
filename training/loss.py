@@ -791,7 +791,8 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
         for key in self.similarity_loss_item_class_dict:
             self.similarity_loss_item_class_dict[key] /= self.radius_loss_counter
 
-
+        self.radius_loss_counter = 0
+        self.similarity_loss_counter = 0
 
 
     def log(self, logger, name, epoch, *args, **kwargs):
@@ -1125,6 +1126,9 @@ class Panoptic_spherical_contrastive_flexible_loss(nn.Module):
         for key in self.similarity_loss_item_class_dict:
             self.similarity_loss_item_class_dict[key] /= self.radius_loss_counter
 
+        self.radius_loss_counter = 0
+        self.similarity_loss_counter = 0
+
     def log(self, logger, name, epoch, *args, **kwargs):
         if "categories" in kwargs:
             if all(x == kwargs["categories"][0] for x in kwargs["categories"]):
@@ -1267,6 +1271,8 @@ class Panoptic_spherical_contrastive_flexible_batch_neg_loss(nn.Module):
                 self.similarity_loss_item_class_dict[cat_id] = 0
                 self.ct_loss_item_class_dict[cat_id] = 0
 
+        outputs_indx_arbitrary_cat = torch.logical_not(masks[:, 1, :, :] == 0)  # for logical operation to not have empty areas (from augmentation) as negative embeddings in loss
+
         if self.sphere_ct_contr_loss_weight > float_precision_thr:
             # for batch_indx in range(batch_size):
             #     for unique_cat_id in unique_cat_ids[1:]:  # skip 0
@@ -1290,8 +1296,10 @@ class Panoptic_spherical_contrastive_flexible_batch_neg_loss(nn.Module):
                 outputs_cat_id_embeddings = outputs_reordered_tmp[:, outputs_indx_select]
 
                 neg_outputs_indx_select = torch.logical_not(outputs_indx_select)
+                neg_outputs_indx_select = torch.logical_and(neg_outputs_indx_select, outputs_indx_arbitrary_cat)
+
                 neg_outputs_cat_id_embeddings = outputs_reordered_tmp[:, neg_outputs_indx_select]
-                # # pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, self.num_pos_embeddings, self.num_neg_embeddings)
+                pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, self.num_pos_embeddings, self.num_neg_embeddings)
                 # pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, self.num_neg_embeddings)
                 #
                 # # for i in range(pos_embeddings.shape[1]):
@@ -1471,6 +1479,8 @@ class Panoptic_spherical_contrastive_flexible_batch_neg_loss(nn.Module):
 
         for key in self.similarity_loss_item_class_dict:
             self.similarity_loss_item_class_dict[key] /= self.radius_loss_counter
+
+        self.radius_loss_counter = 0
 
     def log(self, logger, name, epoch, *args, **kwargs):
         if "categories" in kwargs:
@@ -1812,6 +1822,8 @@ class Hierarchical_cluster_contrast_loss(nn.Module):
 
         for key in self.similarity_loss_item_class_dict:
             self.similarity_loss_item_class_dict[key] /= self.radius_loss_counter
+
+        self.radius_loss_counter = 0
 
     def log(self, logger, name, epoch, *args, **kwargs):
         if "categories" in kwargs:

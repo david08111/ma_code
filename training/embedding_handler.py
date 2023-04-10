@@ -2,6 +2,18 @@ import torch
 import numpy as np
 import random
 
+class EmbeddingHandlerDummy():
+    def __init__(self):
+        pass
+
+    def state_dict(self):
+        pass
+
+    def state_dict(self):
+        pass
+
+    def load_state_dict(self, state_dict):
+        pass
 
 class EmbeddingHandler():
     def __init__(self, embedding_storage_config, embedding_sampler_config, storage_step_update_sample_size, dataset_category_dict, emb_dimensions, device, *args, **kwargs):
@@ -79,6 +91,15 @@ class EmbeddingHandler():
     def step_sample_embeddings2store(self, outputs, masks):
         sampled_embeddings = self.embedding_sampler.sample_embeddings2store(outputs, masks, self.storage_step_update_sample_size)
         self.embedding_storage.store_embeddings(sampled_embeddings)
+
+    def state_dict(self):
+
+        return {"cls_mean_embeddings": self.cls_mean_embeddings,
+                "embedding_storage.embedding_storage.storage": self.embedding_storage.embedding_storage.storage}
+
+    def load_state_dict(self, state_dict):
+        self.cls_mean_embeddings = state_dict["cls_mean_embeddings"]
+        self.embedding_storage.embedding_storage.storage = state_dict["embedding_storage.embedding_storage.storage"]
 
 class EmbeddingStorageWrapper():
     def __init__(self, emb_storage_config):

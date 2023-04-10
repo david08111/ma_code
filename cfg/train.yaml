@@ -46,7 +46,7 @@ scheduler:
     cooldown: 20
 
 training:
-  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/test_debug4"
+  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/test_debug7"
 #  gpu_ids: [0]
   save_freq: 10
   metrics_calc_freq: 10
@@ -88,7 +88,7 @@ loss:
       num_pos_embeddings: 1
       loss_radius:
         #        reverse_huber_threshold: { }
-        radius_cross_entropy_mse: { }
+        reverse_huber_threshold: { }
       radius: 1
       sphere_ct_contr_loss_weight: 0.5
       radius_loss_weight: 0.5
@@ -121,7 +121,7 @@ loss:
       num_pos_embeddings: 1
       loss_radius:
         #        reverse_huber_threshold: { }
-        radius_cross_entropy_mse: { }
+        reverse_huber_threshold: { }
       radius: 1
       sphere_ct_contr_loss_weight: 0.5
       radius_loss_weight: 0.5
@@ -157,7 +157,7 @@ data:
 
 logging:
   name: "LOG"
-  save_path: "/work/scratch/dziuba/ma_code_runs/logs/test_debug4"
+  save_path: "/work/scratch/dziuba/ma_code_runs/logs/test_debug7"
   num_log_img: 5
   log_graph: False
   wandb_config:
@@ -170,7 +170,6 @@ logging:
 
 #  img_log_freq: 10 # set by metrics_calc_freq
 #  num_log_img: 5
-
 
 
 

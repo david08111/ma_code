@@ -377,6 +377,14 @@ class MultiSphereAssociatorFlexible():
 
                 dist_mean_emb2output_emb = torch.norm(torch.sub(outputs[b], cat_id_mean_emb_output_dims), 2, dim=0)
 
+                # ######
+                # ####
+                # mean_emb_test = cat_id_mean_emb.detach().cpu().numpy()
+                # mean_emb_test_radius = torch.norm(cat_id_mean_emb, 2, dim=0).detach().cpu().numpy()
+                # rad_dist_test = dist_mean_emb2output_emb.detach().cpu().numpy()
+                # #######
+                # ######
+
                 outputs_rad_lw_bd_indx = dist_mean_emb2output_emb > radius_lw_bd
                 outputs_rad_up_bd_indx = dist_mean_emb2output_emb < radius_up_bd
                 outputs_rad_mask = torch.logical_and(outputs_rad_lw_bd_indx, outputs_rad_up_bd_indx)
@@ -501,6 +509,7 @@ class MultiSphereAssociatorFlexible():
                                 "segments_info": segm_info})
         # ##############
         # from panopticapi.utils import get_traceback, rgb2id
+        # from matplotlib
         #
         # final_output_mask_test = rgb2id(np.moveaxis(final_output_mask.detach().cpu().numpy()[0], 0, 2))
         #

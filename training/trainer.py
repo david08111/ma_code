@@ -1,7 +1,7 @@
 from .optimizer import Optimizer_Wrapper
 from .scheduler import Scheduler_Wrapper
 from .loss import Metrics_Wrapper
-from .embedding_handler import EmbeddingHandler
+from .embedding_handler import EmbeddingHandler, EmbeddingHandlerDummy
 from utils import TrainLogger
 import torch
 import os
@@ -87,6 +87,8 @@ class Net_trainer():
         else:
             os.makedirs(self.save_path, exist_ok=True)
             # first_run = True
+        self.latest_state_path = latest_state_path
+
         if latest_state_path:
             # state = torch.load(os.path.abspath(latest_state_path))
             self.load_checkpoint(net, latest_state_path)
@@ -141,6 +143,7 @@ class Net_trainer():
             "optimizer": optimizer.optimizer.state_dict(),
             "scheduler": scheduler.scheduler.state_dict(),
             "scaler": scaler.state_dict(),
+            "embedding_handler": self.embedding_handler.state_dict(),
             "best_loss": self.best_loss_score
         }
         torch.save(check_pt, os.path.join(self.save_path, net.model_architecture_name + "_chkpt_" + str(epoch) + ".pth"))
@@ -158,6 +161,7 @@ class Net_trainer():
         self.optimizer.optimizer.load_state_dict(loaded_check_pt["optimizer"])
         self.scheduler.scheduler.load_state_dict(loaded_check_pt["scheduler"])
         self.scaler.load_state_dict(loaded_check_pt["scaler"])
+        # self.embedding_handler.load_state_dict(loaded_check_pt["embedding_handler"])
         self.best_loss_score = loaded_check_pt["best_loss"]
 
     def load_model(self, net, path):
@@ -176,9 +180,11 @@ class Net_trainer():
     def set_embedding_handler(self, net):
         if self.embedding_handler_config:
             self.embedding_handler = EmbeddingHandler(self.embedding_handler_config["embedding_storage"], self.embedding_handler_config["embedding_sampler"], self.embedding_handler_config["storage_step_update_sample_size"], self.dataset_category_dict["train_loader"][0], net.model_architecture_embedding_dims, self.device)
-
+            if self.latest_state_path:
+                # test = torch.load(self.latest_state_path)["embedding_handler"]
+                self.embedding_handler.load_state_dict(torch.load(self.latest_state_path)["embedding_handler"])
         else:
-            self.embedding_handler = None
+            self.embedding_handler = EmbeddingHandlerDummy()
 
     def epoch_init(self, epoch, net, device, data):
         if self.embedding_handler_config:
@@ -260,6 +266,9 @@ class Net_trainer():
 
             if epoch % self.metrics_calc_freq == 0 and epoch != 0:
                 final_outputs, final_output_segmentation_data = net.create_output_from_embeddings(outputs, self.dataset_category_dict["train_loader"], annotations_data, embedding_handler=self.embedding_handler)
+
+                # plt.imshow(final_outputs.detach().cpu().numpy()[0])
+                # plt.show()
 
                 auxiliary_output_list = net.create_auxiliary_output_from_embeddings(outputs, self.dataset_category_dict["train_loader"], annotations_data, embedding_handler=self.embedding_handler)
                 for key in self.criterions["criterion_metrics"].keys():
@@ -485,7 +494,7 @@ class Net_trainer():
         # # # # remove !
         # ######
         # self.start_epoch -= 1
-        # self.start_epoch = 10
+        # self.start_epoch = 110
         # #########
         for epoch in range(self.start_epoch, self.max_epoch + 1):
             # time_start = time.time()
