@@ -29,10 +29,10 @@ class Loss_Wrapper():
             return Hierarchical_cluster_contrast_loss(**loss_config)
         elif loss_type == "spherical_contrast_panoptic":
             return Panoptic_spherical_contrastive_loss(**loss_config)
-        elif loss_type == "spherical_contrast_panoptic_flexible":
-            return Panoptic_spherical_contrastive_flexible_loss(**loss_config)
-        elif loss_type == "spherical_contrast_panoptic_flexible_neg_batch":
-            return Panoptic_spherical_contrastive_flexible_batch_neg_loss(**loss_config)
+        elif loss_type == "spherical_contrast_panoptic_means":
+            return Panoptic_spherical_contrastive_means_loss(**loss_config)
+        elif loss_type == "spherical_contrast_panoptic_all_embeds":
+            return Panoptic_spherical_contrastive_all_embeds_loss(**loss_config)
         elif loss_type == "reverse_huber":
             return ReverseHuberLoss(**loss_config)
         elif loss_type == "reverse_huber_threshold":
@@ -844,7 +844,7 @@ class Panoptic_spherical_contrastive_loss(nn.Module):
                 caption_list = name + ["Item - Similarity Loss", f"Part - {categories_dict[id]['name']}"]
                 logger.add_scalar(caption_list, self.similarity_loss_item_class_dict[id], epoch)
 
-class Panoptic_spherical_contrastive_flexible_loss(nn.Module):
+class Panoptic_spherical_contrastive_means_loss(nn.Module):
     # def __init__(self, sphere_ct_contr_loss, num_pos_embeddings, num_neg_embeddings, loss_radius, radius, cosine_emb_loss_margin=0, sphere_ct_contr_loss_weight=1, radius_loss_weight=1, similarity_loss_weight=1):
     def __init__(self, sphere_ct_contr_loss, num_pos_embeddings, loss_radius, radius, cosine_emb_loss_margin=0, sphere_ct_contr_loss_weight=1, radius_loss_weight=1, similarity_loss_weight=1):
         super().__init__()
@@ -1190,13 +1190,13 @@ class Panoptic_spherical_contrastive_flexible_loss(nn.Module):
                 caption_list = name + ["Item - Similarity Loss", f"Part - {categories_dict[id]['name']}"]
                 logger.add_scalar(caption_list, self.similarity_loss_item_class_dict[id], epoch)
 
-class Panoptic_spherical_contrastive_flexible_batch_neg_loss(nn.Module):
-    # def __init__(self, sphere_ct_contr_loss, num_pos_embeddings, num_neg_embeddings, loss_radius, radius, cosine_emb_loss_margin=0, sphere_ct_contr_loss_weight=1, radius_loss_weight=1, similarity_loss_weight=1):
-    def __init__(self, sphere_ct_contr_loss, num_pos_embeddings, loss_radius, radius, cosine_emb_loss_margin=0, sphere_ct_contr_loss_weight=1, radius_loss_weight=1, similarity_loss_weight=1):
+class Panoptic_spherical_contrastive_all_embeds_loss(nn.Module):
+    def __init__(self, sphere_ct_contr_loss, num_pos_embeddings, num_neg_embeddings, loss_radius, radius, cosine_emb_loss_margin=0, sphere_ct_contr_loss_weight=1, radius_loss_weight=1, similarity_loss_weight=1):
+    # def __init__(self, sphere_ct_contr_loss, num_pos_embeddings, loss_radius, radius, cosine_emb_loss_margin=0, sphere_ct_contr_loss_weight=1, radius_loss_weight=1, similarity_loss_weight=1):
         super().__init__()
         self.sphere_ct_contr_loss = Loss_Wrapper(sphere_ct_contr_loss).loss
         self.num_pos_embeddings = num_pos_embeddings
-        # self.num_neg_embeddings = num_neg_embeddings
+        self.num_neg_embeddings = num_neg_embeddings
         self.radius_loss = Loss_Wrapper(loss_radius).loss
         # self.outer_radius_loss = Loss_Wrapper(outer_radius_loss).loss
         self.radius = radius
@@ -1260,7 +1260,7 @@ class Panoptic_spherical_contrastive_flexible_batch_neg_loss(nn.Module):
 
         ct_loss_part = torch.tensor(0, dtype=torch.float32, device=device)
 
-        # batch_cat_id_embeds = {} #outputs.view(outputs.shape[0], outputs.shape[1], -1)
+        batch_cat_id_embeds = {} #outputs.view(outputs.shape[0], outputs.shape[1], -1)
 
         num_categories = len(embedding_handler.cls_mean_embeddings.keys())
         if len(self.abs_radius_err_class_dict) != num_categories + 1 or len(self.radius_loss_item_class_dict) != num_categories + 1 \
@@ -1277,88 +1277,94 @@ class Panoptic_spherical_contrastive_flexible_batch_neg_loss(nn.Module):
             # for batch_indx in range(batch_size):
             #     for unique_cat_id in unique_cat_ids[1:]:  # skip 0
 
-            # for unique_cat_id in unique_cat_ids[1:]:  # skip 0
-            #     unique_cat_id = int(unique_cat_id.item())
-            #     batch_cat_id_embeds[unique_cat_id] = {}
-            #     for batch_indx in range(batch_size):
-            #
-            #         outputs_indx_select = masks[batch_indx, 1, :, :] == unique_cat_id
-            #         outputs_cat_id_embeddings = outputs_reordered_tmp[:, batch_indx, outputs_indx_select]
-            #
-            #
-            #         batch_cat_id_embeds[unique_cat_id][batch_indx] = outputs_cat_id_embeddings
-
-            # for batch_indx in range(batch_size):
             for unique_cat_id in unique_cat_ids[1:]:  # skip 0
                 unique_cat_id = int(unique_cat_id.item())
+                batch_cat_id_embeds[unique_cat_id] = {}
+                for batch_indx in range(batch_size):
 
-                outputs_indx_select = masks[:, 1, :, :] == unique_cat_id
-                outputs_cat_id_embeddings = outputs_reordered_tmp[:, outputs_indx_select]
-
-                neg_outputs_indx_select = torch.logical_not(outputs_indx_select)
-                neg_outputs_indx_select = torch.logical_and(neg_outputs_indx_select, outputs_indx_arbitrary_cat)
-
-                neg_outputs_cat_id_embeddings = outputs_reordered_tmp[:, neg_outputs_indx_select]
-                pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, self.num_pos_embeddings, self.num_neg_embeddings)
-                # pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, self.num_neg_embeddings)
-                #
-                # # for i in range(pos_embeddings.shape[1]):
-                # #     query = torch.unsqueeze(pos_embeddings[:, i], dim=1)
-                # #
-                # #     pos_embeddings_indices = list(range(pos_embeddings.shape[1]))
-                # #     pos_embeddings_indices.remove(i)
-                # #     pos_embed_indx_list = random.choices(pos_embeddings_indices, k=self.num_pos_embeddings)
-                # #     pos_embeds = pos_embeddings[:, pos_embed_indx_list]
-                # #     self.sphere_ct_contr_loss(None, None, query=query, positive_keys=pos_embeds, negative_keys=neg_embeddings)
-                # query_indx_mix = torch.randperm(pos_embeddings.shape[1])
-                # query_embeds = pos_embeddings[:, query_indx_mix]
-                #
-                # ct_loss_part = self.sphere_ct_contr_loss(None, None, query=query_embeds, positive_keys=pos_embeddings,
-                #                           negative_keys=neg_embeddings)
-
-                # pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, self.num_pos_embeddings, self.num_neg_embeddings)
-                # pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, self.num_neg_embeddings)
-                # query_embeddings = torch.concat([batch_cat_id_embeds[unique_cat_id][b] for b in range(batch_size)], dim=1)
-
-                query_embeddings = outputs_cat_id_embeddings
-
-                pos_embeddings = embedding_handler.cls_mean_embeddings[unique_cat_id].repeat(query_embeddings.shape[1], 1).T
-
-                neg_embeddings = torch.stack([embedding_handler.cls_mean_embeddings[tmp_cat_id] for tmp_cat_id in embedding_handler.cls_mean_embeddings.keys() if tmp_cat_id != unique_cat_id], dim=1)
-
-                neg_embeddings = torch.cat([neg_embeddings, neg_outputs_cat_id_embeddings], dim=1)
-                # query_indx_mix = torch.randperm(pos_embeddings.shape[1])
-                # query_embeds = pos_embeddings[:, query_indx_mix]
-
-                ct_loss_part += self.sphere_ct_contr_loss(None, None, query=query_embeddings, positive_keys=pos_embeddings,
-                                          negative_keys=neg_embeddings)
-
-                #######
+                    outputs_indx_select = masks[batch_indx, 1, :, :] == unique_cat_id
+                    outputs_cat_id_embeddings = outputs_reordered_tmp[:, batch_indx, outputs_indx_select]
 
 
-                outputs_cat_id_mean_embeddings_radius = torch.norm(torch.sub(outputs_cat_id_embeddings, pos_embeddings), 2, dim=0)
+                    batch_cat_id_embeds[unique_cat_id][batch_indx] = outputs_cat_id_embeddings
 
-                radius_label = torch.full(outputs_cat_id_mean_embeddings_radius.shape, self.radius, device=device)
+            for batch_indx in range(batch_size):
 
-                radius_loss_part += self.radius_loss(outputs_cat_id_mean_embeddings_radius, radius_label)
+                unique_cat_ids_proc = torch.unique(masks[batch_indx, 1, :, :])
+                for unique_cat_id in unique_cat_ids_proc[1:]:  # skip 0
+                    unique_cat_id = int(unique_cat_id.item())
+
+                    outputs_indx_select = masks[batch_indx, 1, :, :] == unique_cat_id
+                    outputs_cat_id_embeddings = outputs_reordered_tmp[:, batch_indx, outputs_indx_select]
+
+                    # neg_outputs_indx_select = torch.logical_not(outputs_indx_select)
+                    # neg_outputs_indx_select = torch.logical_and(neg_outputs_indx_select, outputs_indx_arbitrary_cat)
+                    #
+                    # neg_outputs_cat_id_embeddings = outputs_reordered_tmp[:, neg_outputs_indx_select]
+                    pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, outputs_cat_id_embeddings.shape[1], self.num_neg_embeddings)
+                    # pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, self.num_neg_embeddings)
+                    #
+                    # # for i in range(pos_embeddings.shape[1]):
+                    # #     query = torch.unsqueeze(pos_embeddings[:, i], dim=1)
+                    # #
+                    # #     pos_embeddings_indices = list(range(pos_embeddings.shape[1]))
+                    # #     pos_embeddings_indices.remove(i)
+                    # #     pos_embed_indx_list = random.choices(pos_embeddings_indices, k=self.num_pos_embeddings)
+                    # #     pos_embeds = pos_embeddings[:, pos_embed_indx_list]
+                    # #     self.sphere_ct_contr_loss(None, None, query=query, positive_keys=pos_embeds, negative_keys=neg_embeddings)
+
+                    pos_embeddings = torch.cat([pos_embeddings, torch.unsqueeze(embedding_handler.cls_mean_embeddings[unique_cat_id], dim=1)], dim=1)
+                    query_indx_mix = torch.randperm(pos_embeddings.shape[1])
+                    query_embeddings = pos_embeddings[:, query_indx_mix]
+                    #
+                    # ct_loss_part = self.sphere_ct_contr_loss(None, None, query=query_embeds, positive_keys=pos_embeddings,
+                    #                           negative_keys=neg_embeddings)
+
+                    # pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, self.num_pos_embeddings, self.num_neg_embeddings)
+                    # pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, self.num_neg_embeddings)
+                    # query_embeddings = torch.concat([batch_cat_id_embeds[unique_cat_id][b] for b in range(batch_size)], dim=1)
+
+                    # query_embeddings = outputs_cat_id_embeddings
+
+                    # pos_embeddings = embedding_handler.cls_mean_embeddings[unique_cat_id].repeat(query_embeddings.shape[1], 1).T
+
+                    neg_embeddings_means = torch.stack([embedding_handler.cls_mean_embeddings[tmp_cat_id] for tmp_cat_id in embedding_handler.cls_mean_embeddings.keys() if tmp_cat_id != unique_cat_id], dim=1)
+
+                    neg_embeddings = torch.cat([neg_embeddings, neg_embeddings_means], dim=1)
+                    # query_indx_mix = torch.randperm(pos_embeddings.shape[1])
+                    # query_embeds = pos_embeddings[:, query_indx_mix]
+
+                    ct_loss_part += self.sphere_ct_contr_loss(None, None, query=query_embeddings,
+                                                              positive_keys=pos_embeddings,
+                                                              negative_keys=neg_embeddings)
+
+                    #######
+
+                    pos_cat_id_mean = embedding_handler.cls_mean_embeddings[unique_cat_id].repeat(outputs_cat_id_embeddings.shape[1], 1).T
+
+                    outputs_cat_id_mean_embeddings_radius = torch.norm(torch.sub(outputs_cat_id_embeddings, pos_cat_id_mean), 2, dim=0)
+
+                    radius_label = torch.full(outputs_cat_id_mean_embeddings_radius.shape, self.radius, device=device)
+
+                    radius_loss_part += self.radius_loss(outputs_cat_id_mean_embeddings_radius, radius_label)
 
 
-                ###### radius hist
-                abs_error = torch.abs(outputs_cat_id_mean_embeddings_radius - radius_label).detach().cpu().numpy()
+                    ###### radius hist
+                    abs_error = torch.abs(outputs_cat_id_mean_embeddings_radius - radius_label).detach().cpu().numpy()
 
-                # abs_error_histogram = np.histogram(abs_error, bins=np.arange())
+                    # abs_error_histogram = np.histogram(abs_error, bins=np.arange())
 
-                np_hist, bins = np.histogram(abs_error, self.abs_radius_err_class_dict["bins"])
+                    np_hist, bins = np.histogram(abs_error, self.abs_radius_err_class_dict["bins"])
 
-                self.abs_radius_err_class_dict[unique_cat_id] += np_hist
+                    self.abs_radius_err_class_dict[unique_cat_id] += np_hist
 
-                self.radius_loss_item_class_dict[unique_cat_id] += radius_loss_part.item()
+                    self.radius_loss_item_class_dict[unique_cat_id] += radius_loss_part.item()
 
-                self.ct_loss_item_class_dict[unique_cat_id] += ct_loss_part.item()
+                    self.ct_loss_item_class_dict[unique_cat_id] += ct_loss_part.item()
 
-                ##########
+                    ##########
 
-                radius_loss_counter += outputs.shape[0]
+                    radius_loss_counter += outputs.shape[0]
 
 
 
@@ -1481,6 +1487,7 @@ class Panoptic_spherical_contrastive_flexible_batch_neg_loss(nn.Module):
             self.similarity_loss_item_class_dict[key] /= self.radius_loss_counter
 
         self.radius_loss_counter = 0
+        self.similarity_loss_counter = 0
 
     def log(self, logger, name, epoch, *args, **kwargs):
         if "categories" in kwargs:

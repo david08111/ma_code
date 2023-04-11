@@ -46,7 +46,7 @@ scheduler:
     cooldown: 20
 
 training:
-  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/test_debug7"
+  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/test_debug8"
 #  gpu_ids: [0]
   save_freq: 10
   metrics_calc_freq: 10
@@ -81,11 +81,12 @@ training:
 ##      hypsph_radius_map_list: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190] # (optional) specify for specific mapping of indx from cat in "cat_id_radius_order_map_list" to radius
 loss:
   train_loss:
-    spherical_contrast_panoptic_flexible: #_neg_batch:
+    spherical_contrast_panoptic_all_embeds:
       sphere_ct_contr_loss:
         info_nce:
           temperature: 0.1
       num_pos_embeddings: 1
+      num_neg_embeddings: 500
       loss_radius:
         #        reverse_huber_threshold: { }
         reverse_huber_threshold: { }
@@ -114,11 +115,12 @@ loss:
 #      cosine_emb_loss_margin: -1
 ##      hypsph_radius_map_list: [ 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190 ] # (optional) specify for specific mapping of indx from cat in "cat_id_radius_order_map_list" to radius
   val_loss:
-    spherical_contrast_panoptic_flexible: #_neg_batch:
+    spherical_contrast_panoptic_all_embeds:
       sphere_ct_contr_loss:
         info_nce:
           temperature: 0.1
       num_pos_embeddings: 1
+      num_neg_embeddings: 500
       loss_radius:
         #        reverse_huber_threshold: { }
         reverse_huber_threshold: { }
@@ -157,7 +159,7 @@ data:
 
 logging:
   name: "LOG"
-  save_path: "/work/scratch/dziuba/ma_code_runs/logs/test_debug7"
+  save_path: "/work/scratch/dziuba/ma_code_runs/logs/test_debug8"
   num_log_img: 5
   log_graph: False
   wandb_config:
