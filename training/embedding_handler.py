@@ -34,51 +34,46 @@ class EmbeddingHandler():
 
         embedding_storage_config_tmp[embedding_storage_type]["dataset_categories"] = self.dataset_categories
         embedding_storage_config_tmp[embedding_storage_type]["embedding_dims"] = emb_dimensions
+        embedding_storage_config_tmp[embedding_storage_type]["device"] = device
 
 
         self.embedding_storage = EmbeddingStorageWrapper(embedding_storage_config_tmp)
 
         self.embedding_sampler = EmbeddingSamplerWrapper(embedding_sampler_config)
 
-        self.cls_mean_embeddings = {}
+        # self.cls_mean_embeddings = {}
 
-        for cat_id in self.dataset_categories.keys():
-            self.cls_mean_embeddings[cat_id] = torch.zeros((emb_dimensions), device=device)
+        # for cat_id in self.dataset_categories.keys():
+        #     self.cls_mean_embeddings[cat_id] = torch.zeros((emb_dimensions), device=device)
 
     def accumulate_mean_embedding(self, outputs, masks, *args, **kwargs):
 
-        unique_cat_ids = torch.unique(masks[:, 1, :, :])  # skip segment_id=0
-
-        outputs_reordered_tmp = torch.permute(outputs, (1, 0, 2, 3))
-        # masks_reordered_tmp = torch.permute(masks, (1, 0, 2, 3))
+        self.embedding_storage.accumulate_mean_embedding(outputs, masks, *args, **kwargs)
 
 
-        ##################
-        for unique_cat_id in unique_cat_ids[1:]:  # skip 0
-            unique_cat_id = int(unique_cat_id.item())
-
-            outputs_indx_select = masks[:, 1, :, :] == unique_cat_id
-            outputs_cat_id_embeddings = outputs_reordered_tmp[:, outputs_indx_select]
-            # test = outputs_cat_id_embeddings[:, 0].detach().cpu().numpy()
-            # test2 = np.multiply(test, test.T)
-            # test3 = np.sum(test2)
-            outputs_cat_id_embeddings_mean = torch.mean(outputs_cat_id_embeddings, dim=1)
-
-
-            self.cls_mean_embeddings[unique_cat_id] = (outputs_cat_id_embeddings_mean + self.cls_mean_embeddings[unique_cat_id]) / 2
-
+    # def get_cls_mean_embeddings(self):
+    #     return self.cls_mean_embeddings
+    #
+    # def get_mean_embedding(self, cat_id):
+    #     return self.cls_mean_embeddings[cat_id]
+    #
+    # def set_cls_mean_embeddings(self, new_cls_mean_embeddings):
+    #     self.cls_mean_embeddings = new_cls_mean_embeddings
+    #
+    # def set_mean_embeddings(self, cat_id, new_cls_mean_embedding):
+    #     self.cls_mean_embeddings[cat_id] = new_cls_mean_embedding
 
     def get_cls_mean_embeddings(self):
-        return self.cls_mean_embeddings
+        return self.embedding_storage.cls_mean_embeddings
 
     def get_mean_embedding(self, cat_id):
-        return self.cls_mean_embeddings[cat_id]
+        return self.embedding_storage.cls_mean_embeddings[cat_id]
 
     def set_cls_mean_embeddings(self, new_cls_mean_embeddings):
-        self.cls_mean_embeddings = new_cls_mean_embeddings
+        self.embedding_storage.cls_mean_embeddings = new_cls_mean_embeddings
 
     def set_mean_embeddings(self, cat_id, new_cls_mean_embedding):
-        self.cls_mean_embeddings[cat_id] = new_cls_mean_embedding
+        self.embedding_storage.cls_mean_embeddings[cat_id] = new_cls_mean_embedding
 
     def store_embeddings(self, embeddings):
         self.embedding_storage.store_embeddings(embeddings)
@@ -95,11 +90,11 @@ class EmbeddingHandler():
 
     def state_dict(self):
 
-        return {"cls_mean_embeddings": self.cls_mean_embeddings,
+        return {"cls_mean_embeddings": self.embedding_storage.cls_mean_embeddings,
                 "embedding_storage.embedding_storage.storage": self.embedding_storage.embedding_storage.storage}
 
     def load_state_dict(self, state_dict):
-        self.cls_mean_embeddings = state_dict["cls_mean_embeddings"]
+        self.embedding_storage.cls_mean_embeddings = state_dict["cls_mean_embeddings"]
         self.embedding_storage.embedding_storage.storage = state_dict["embedding_storage.embedding_storage.storage"]
 
 class EmbeddingStorageWrapper():
@@ -110,6 +105,11 @@ class EmbeddingStorageWrapper():
         self.embedding_storage_config["cat_id2indx_map"] = self.set_cat_id2indx_map(self.embedding_storage_config.pop("dataset_categories"))
 
         self.embedding_storage = self.set_embedding_storage(self.embedding_storage_type, self.embedding_storage_config)
+
+        self.cls_mean_embeddings = {}
+
+        for cat_id in emb_storage_config[self.embedding_storage_type]["dataset_categories"].keys():
+            self.cls_mean_embeddings[cat_id] = torch.zeros((self.embedding_storage_config["embedding_dims"]), device=self.embedding_storage_config["device"])
 
     def set_embedding_storage(self, name, emb_storage_config):
         if name == "memory_bank":
@@ -151,6 +151,40 @@ class EmbeddingStorageWrapper():
 
     def get_cat_id2indx_map(self):
         return self.embedding_storage.get_cat_id2indx_map()
+
+    def accumulate_mean_embedding(self, outputs, masks, *args, **kwargs):
+
+        unique_cat_ids = torch.unique(masks[:, 1, :, :])  # skip segment_id=0
+
+        outputs_reordered_tmp = torch.permute(outputs, (1, 0, 2, 3))
+        # masks_reordered_tmp = torch.permute(masks, (1, 0, 2, 3))
+
+
+        ##################
+        for unique_cat_id in unique_cat_ids[1:]:  # skip 0
+            unique_cat_id = int(unique_cat_id.item())
+
+            outputs_indx_select = masks[:, 1, :, :] == unique_cat_id
+            outputs_cat_id_embeddings = outputs_reordered_tmp[:, outputs_indx_select]
+            # test = outputs_cat_id_embeddings[:, 0].detach().cpu().numpy()
+            # test2 = np.multiply(test, test.T)
+            # test3 = np.sum(test2)
+            outputs_cat_id_embeddings_mean = torch.mean(outputs_cat_id_embeddings, dim=1)
+
+
+            self.cls_mean_embeddings[unique_cat_id] = (outputs_cat_id_embeddings_mean + self.cls_mean_embeddings[unique_cat_id]) / 2
+
+    def get_cls_mean_embeddings(self):
+        return self.cls_mean_embeddings
+
+    def get_mean_embedding(self, cat_id):
+        return self.cls_mean_embeddings[cat_id]
+
+    def set_cls_mean_embeddings(self, new_cls_mean_embeddings):
+        self.cls_mean_embeddings = new_cls_mean_embeddings
+
+    def set_mean_embeddings(self, cat_id, new_cls_mean_embedding):
+        self.cls_mean_embeddings[cat_id] = new_cls_mean_embedding
 
 
 class MemoryBank():
@@ -373,9 +407,9 @@ class RandomSampler():
         # TODO: check for nasty edge cases
 
         embedding_storage_size = np.prod(list(embedding_storage.get_size())[:-1])
-        num_embedding_storage_samples_pos = random.randint(0, embedding_storage.get_size()[1])
+        num_embedding_storage_samples_pos = random.randint(0, min(num_pos_embeds, embedding_storage.get_size()[1]))
 
-        num_batch_samples_pos = max(num_embedding_storage_samples_pos, num_pos_embeds - num_embedding_storage_samples_pos)
+        num_batch_samples_pos = num_pos_embeds - num_embedding_storage_samples_pos
 
         ##
         pos_embeds = torch.zeros(embedding_dims, num_pos_embeds)
@@ -383,8 +417,11 @@ class RandomSampler():
         # pos_embeds_batch_indx_list = random.sample(batch_size, k=num_batch_samples_pos)
 
         # pos_embeds[:num_batch_samples_pos] = batch_embeds[cat_id][batch_index][:, pos_embeds_indx_list]
+
+        # if cat_id == 20:
+        #     pass
         if num_batch_samples_pos:
-            non_zero_batch_indx_embeds_size_array = np.array([[elem, batch_embeds[cat_id][elem].shape[1]-1] for elem in range(batch_size) if batch_embeds[cat_id][elem].shape[1] != 0])
+            non_zero_batch_indx_embeds_size_array = np.array([[elem, batch_embeds[cat_id][elem].shape[1]-1] for elem in range(batch_size) if batch_embeds[cat_id][elem].shape[1] != 0 and batch_embeds[cat_id][elem].shape[1] > 1])
 
             pos_embeds_indx_array = np.zeros((num_batch_samples_pos, 2), dtype=np.uint32)
 
@@ -393,19 +430,21 @@ class RandomSampler():
             for i in range(num_batch_samples_pos):
                 pos_embeds_indx_array[i] = non_zero_batch_indx_embeds_size_array[pos_embeds_indx_array_choices[i]]
 
-            pos_embeds_indx_array[:, 1] = np.random.randint(0, pos_embeds_indx_array[:, 1])
+            pos_embeds_indx_array[:, 1] = np.random.randint(0, pos_embeds_indx_array[:, 1])   # reaches still shape size although
             # pos_embeds_indx_list = [[random.choice(non_zero_batch_list) for foo in range(num_batch_samples_pos)], []]
             # pos_embeds_indx_list = [random.choices(non_zero_batch_list, k=num_batch_samples_pos), []]
             # pos_embeds_indx_list = [random.sample(non_zero_batch_list, k=num_batch_samples_pos), []]
             # for k in range(len(pos_embeds_indx_list[0])):
             #     pos_embeds_indx_list[1].append(random.randint(0, batch_embeds[cat_id][pos_embeds_indx_list[0][k]].shape[1] - 1))
+            # if pos_embeds_indx_array.shape[0] >= pos_embeds.shape[1]:
+            #     pass
             for i in range(pos_embeds_indx_array.shape[0]):
                 # test1 = batch_embeds[cat_id][pos_embeds_indx_list[0][i]][:, pos_embeds_indx_list[1][i]]
                 # test2 = pos_embeds[:, i]
-                print(pos_embeds_indx_array[i, 0])
-                print(pos_embeds_indx_array[i, 1])
-                print(f"i: {i}")
-                print(f"Cat_id: {cat_id}")
+                # print(pos_embeds_indx_array[i, 0])
+                # print(pos_embeds_indx_array[i, 1])
+                # print(f"i: {i}")
+                # print(f"Cat_id: {cat_id}")
                 pos_embeds[:, i] = batch_embeds[cat_id][pos_embeds_indx_array[i, 0]][:, pos_embeds_indx_array[i, 1]]
 
         if num_embedding_storage_samples_pos:
@@ -417,7 +456,7 @@ class RandomSampler():
             #
         pos_embeds = pos_embeds.to(device, non_blocking=True)
 
-        num_embeddings_per_cat = int(np.round(num_neg_embeds / num_categories))
+        num_embeddings_per_cat = int(np.floor(num_neg_embeds / num_categories))
 
         num_neg_embeds_per_cat_storage = random.randint(0, num_embeddings_per_cat)
 
@@ -443,7 +482,7 @@ class RandomSampler():
             neg_embeds[:, num_neg_embeds_per_cat * indx_counter:num_neg_embeds_per_cat * indx_counter + num_neg_embeds_per_cat_storage] = self._sample_embeddings_from_storage(
                 neg_cat_id, embedding_storage, num_neg_embeds_per_cat_storage)
 
-            test3 = neg_embeds.detach().cpu().numpy()
+            # test3 = neg_embeds.detach().cpu().numpy()
 
             # neg_embeds_indx_list = random.sample(range(batch_embeds[neg_cat_id][batch_index].shape[0]),
             #                                      k=num_neg_embeds_per_cat_batch)
@@ -838,13 +877,21 @@ class MeanSampler():
         pass
 
     def sample_embeddings(self, batch_embeds, embedding_storage, batch_index, cat_id, num_pos_embeds, num_neg_embeds):
-        pass
+        neg_embeddings_means = torch.stack([embedding_storage.cls_mean_embeddings[tmp_cat_id] for tmp_cat_id in
+                                            embedding_storage.cls_mean_embeddings.keys() if
+                                            tmp_cat_id != cat_id], dim=1)
+
+        # neg_embeddings = torch.cat([neg_embeddings, neg_embeddings_means], dim=1)
+
+        pos_embeddings_means = torch.unsqueeze(embedding_storage.cls_mean_embeddings[cat_id], dim=1)
+
+        return pos_embeddings_means, neg_embeddings_means
 
     def _sample_pos_embeddings_from_storage(self, cat_id, embedding_storage, num_embedding_storage_samples):
-        pass
+        return None
 
     def _sample_neg_embeddings_from_storage(self, cat_id, embedding_storage, num_embedding_storage_samples):
-        pass
+        return None
 
 class ImgSampler():
     def __init__(self):
@@ -861,18 +908,88 @@ class ImgSampler():
         pass
 
 class BatchSampler():
+    """
+
+    """
     def __init__(self):
         # self.k = k
         pass
 
+    # def sample_embeddings_batch_wise(self, batch_embeds, embedding_storage, batch_index, cat_id, num_pos_embeds, num_neg_embeds):
+    #     # batch_embeds_first_key = list(batch_embeds.keys())[0]
+    #     # embedding_dims = batch_embeds[batch_embeds_first_key][0].shape[0]
+    #     # batch_size = len(batch_embeds[batch_embeds_first_key].keys())
+    #     # num_categories = embedding_storage.get_num_categories()
+    #     # for negatives
+    #     # perc_embedding_storage_samples = random.random()
+    #
+    #     # device = batch_embeds[batch_embeds_first_key][0].device
+    #
+    #     # pos_embeds = torch.cat([batch_embeds[cat_id][b] for b in range(len(batch_embeds[cat_id])) if batch_embeds[cat_id][b].shape[1] != 0], dim=1)
+    #     pos_embeds = batch_embeds[cat_id][batch_index]
+    #     # test = torch.randint(0, pos_embeds.shape[1] - 1, (num_pos_embeds,))
+    #     num_pos_embeds = min(num_pos_embeds, pos_embeds.shape[1])
+    #     pos_embeds = pos_embeds[:, torch.randint(0, pos_embeds.shape[1] - 1, (num_pos_embeds,))]
+    #
+    #     neg_embeds = torch.cat([batch_embeds[tmp_cat_id][b] for tmp_cat_id in batch_embeds.keys() if tmp_cat_id != cat_id for b in range(len(batch_embeds[cat_id])) if batch_embeds[tmp_cat_id][b].shape[1] != 0], dim=1)
+    #     num_neg_embeds = min(num_neg_embeds, neg_embeds.shape[1])
+    #     neg_embeds = neg_embeds[:, torch.randint(0, neg_embeds.shape[1] - 1, (num_neg_embeds,))]
+    #
+    #
+    #     # neg_embeds = neg_embeds.to(device, non_blocking=True)
+    #     return pos_embeds, neg_embeds
+
     def sample_embeddings(self, batch_embeds, embedding_storage, batch_index, cat_id, num_pos_embeds, num_neg_embeds):
-        pass
+        # batch_embeds_first_key = list(batch_embeds.keys())[0]
+        # embedding_dims = batch_embeds[batch_embeds_first_key][0].shape[0]
+        # batch_size = len(batch_embeds[batch_embeds_first_key].keys())
+        # num_categories = embedding_storage.get_num_categories()
+        # for negatives
+        # perc_embedding_storage_samples = random.random()
 
-    def _sample_pos_embeddings_from_storage(self, cat_id, embedding_storage, num_embedding_storage_samples):
-        pass
+        # device = batch_embeds[batch_embeds_first_key][0].device
 
-    def _sample_neg_embeddings_from_storage(self, cat_id, embedding_storage, num_embedding_storage_samples):
-        pass
+        pos_embeds = torch.cat([batch_embeds[cat_id][b] for b in range(len(batch_embeds[cat_id])) if batch_embeds[cat_id][b].shape[1] != 0], dim=1)
+        # pos_embeds = batch_embeds[cat_id][batch_index]
+        # test = torch.randint(0, pos_embeds.shape[1] - 1, (num_pos_embeds,))
+        num_pos_embeds = min(num_pos_embeds, pos_embeds.shape[1])
+        pos_embeds = pos_embeds[:, torch.randint(0, pos_embeds.shape[1] - 1, (num_pos_embeds,))]
+
+        neg_embeds = torch.cat([batch_embeds[tmp_cat_id][b] for tmp_cat_id in batch_embeds.keys() if tmp_cat_id != cat_id for b in range(len(batch_embeds[cat_id])) if batch_embeds[tmp_cat_id][b].shape[1] != 0], dim=1)
+        num_neg_embeds = min(num_neg_embeds, neg_embeds.shape[1])
+        neg_embeds = neg_embeds[:, torch.randint(0, neg_embeds.shape[1] - 1, (num_neg_embeds,))]
+
+
+        # neg_embeds = neg_embeds.to(device, non_blocking=True)
+        return pos_embeds, neg_embeds
+
+    def _sample_embeddings_from_storage(self, cat_id, embedding_storage, num_embedding_storage_samples):
+        return None
+
+    def sample_embeddings2store(self, output_embeddings, masks, num_embeddings_per_cat):
+
+        unique_cat_ids = torch.unique(masks[:, 1, :, :])
+
+        # batch_size = output_embeddings.shape[0]
+
+
+        outputs_reordered_tmp = torch.permute(output_embeddings, (1, 0, 2, 3))
+
+        sampled_embeddings = {}
+
+        for unique_cat_id in unique_cat_ids[1:]:  # skip 0
+            unique_cat_id = int(unique_cat_id.item())
+
+            outputs_indx_select = masks[:, 1, :, :] == unique_cat_id
+            outputs_cat_id_embeddings = outputs_reordered_tmp[:, outputs_indx_select]
+
+
+            embeds_indx_list = [random.choice(range(outputs_cat_id_embeddings.shape[1])) for foo in range(num_embeddings_per_cat)]
+
+            sampled_embeddings[unique_cat_id] = outputs_cat_id_embeddings[:, embeds_indx_list].T
+
+
+        return sampled_embeddings
 
 class StorageSampler():
     def __init__(self):

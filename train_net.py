@@ -79,17 +79,7 @@ if __name__ == "__main__":
                         help="Path to configuration file")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
-    # ####
-    # input = torch.tensor([[0, 0, 1], [1, 0, 0], [0, 1, 0]], dtype=torch.float32)
-    # target = torch.tensor([2, 0, 1])
-    #
-    # # loss_fnct = torch.nn.CrossEntropyLoss()
-    # #
-    # # loss = loss_fnct(input, target)
-    # # loss = torch.nn.functional.cross_entropy(input, target)
-    # loss_fnct = torch.nn.NLLLoss()
-    # loss = loss_fnct(input, target)
-    # ###
+
     train_net(args.config, args.verbose)
 
     # import cProfile

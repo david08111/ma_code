@@ -5,8 +5,8 @@ model:
 #    model_architecture_name: deeplabv3_resnet50
     model_architecture_origin: segmentation_models_pytorch
     model_architecture_name: unet_inceptionresnetv2
-    pretrained: False
-    embedding_dims: 150
+    pretrained: True
+    embedding_dims: 50
   channels: 3
   output_creation:  # first list element will be used to create the panoptic output prediction
 #    - multi_sphere_association:
@@ -61,7 +61,7 @@ training:
       memory_bank:
         num_embeddings: 500 # equally distributed to categories
     embedding_sampler:
-      random_sampler: {}
+      batch_sampler: {}
 
 
 
@@ -85,8 +85,8 @@ loss:
       sphere_ct_contr_loss:
         info_nce:
           temperature: 0.1
-      num_pos_embeddings: 1
-      num_neg_embeddings: 500
+      num_pos_embeddings: "all"     # per category - try "all"
+      num_neg_embeddings: 2000
       loss_radius:
         #        reverse_huber_threshold: { }
         reverse_huber_threshold: { }
@@ -119,8 +119,8 @@ loss:
       sphere_ct_contr_loss:
         info_nce:
           temperature: 0.1
-      num_pos_embeddings: 1
-      num_neg_embeddings: 500
+      num_pos_embeddings: "all"
+      num_neg_embeddings: 2000
       loss_radius:
         #        reverse_huber_threshold: { }
         reverse_huber_threshold: { }
@@ -129,17 +129,35 @@ loss:
       radius_loss_weight: 0.5
       similarity_loss_weight: 0
       cosine_emb_loss_margin: -1
-#    weighted_sum:
-#      loss_list:
-#        - discriminative_loss: # settings as in "Semantic Instance Segmentation with a Discriminative Loss Function" paper for cityscapes
-#            margin_variance: 0.5
-#            margin_distance: 1.5
-#            weighting_list: [1, 1, 0.001]
-#        - discriminative_loss:
-#            margin_variance: 1
-#            margin_distance: 3
-#            weighting_list: [ 1, 1, 0.1 ]
-#      weights_list: [ 1, 0.7 ]
+#loss:
+#  train_loss:
+#    spherical_contrast_panoptic_means:
+#      sphere_ct_contr_loss:
+#        info_nce:
+#          temperature: 0.1
+#      num_pos_embeddings: 1
+#      loss_radius:
+#        #        reverse_huber_threshold: { }
+#        reverse_huber_threshold: { }
+#      radius: 1
+#      sphere_ct_contr_loss_weight: 0.5
+#      radius_loss_weight: 0.5
+#      similarity_loss_weight: 0
+#      cosine_emb_loss_margin: -1
+#  val_loss:
+#    spherical_contrast_panoptic_means:
+#      sphere_ct_contr_loss:
+#        info_nce:
+#          temperature: 0.1
+#      num_pos_embeddings: 1
+#      loss_radius:
+#        #        reverse_huber_threshold: { }
+#        reverse_huber_threshold: { }
+#      radius: 1
+#      sphere_ct_contr_loss_weight: 0.5
+#      radius_loss_weight: 0.5
+#      similarity_loss_weight: 0
+#      cosine_emb_loss_margin: -1
   metrics:
     - panoptic_quality:
         filter: None

@@ -251,11 +251,18 @@ class Net_trainer():
                 # loss, loss_items = self.criterions["criterion_train"].loss(outputs, masks, annotations_data)
                 loss = self.criterions["criterion_train"].loss(outputs, masks, annotations_data, embedding_handler=self.embedding_handler)
 
+            # from torchviz import make_dot
+            # g = make_dot(loss)
+            # g.view()
+            # # plt.show()
+
+
             self.scaler.scale(loss).backward()
 
             self.scaler.step(self.optimizer.optimizer)
 
             self.scaler.update()
+
 
             # self.optimizer.optimizer.zero_grad(set_to_none=True)
 
