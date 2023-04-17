@@ -357,7 +357,7 @@ class MultiSphereAssociatorFlexible():
         radius_up_bd = self.radius + abs(self.radius_association_margin)
 
         embedding_handler = kwargs["embedding_handler"]
-        cls_mean_embeddings = embedding_handler.cls_mean_embeddings
+        cls_mean_embeddings = embedding_handler.embedding_storage.cls_mean_embeddings
 
         for b in range(batch_size):
             # outputs_emb_radius = torch.norm(outputs, 2, dim=1)
@@ -600,7 +600,11 @@ class NearestClassMeanAssociator():
 
 
         embedding_handler = kwargs["embedding_handler"]
-        cls_mean_embeddings = embedding_handler.cls_mean_embeddings
+        cls_mean_embeddings = embedding_handler.embedding_storage.cls_mean_embeddings
+
+        mean_emb_cat_id_order_list = [tmp_cat_id for tmp_cat_id in cls_mean_embeddings.keys()]
+
+        mean_emb_tensor = torch.stack([cls_mean_embeddings[tmp_cat_id].repeat(1, no_spatial_embedds).view(cls_mean_embeddings[tmp_cat_id].shape[0], height, width) for tmp_cat_id in mean_emb_cat_id_order_list])
 
         for b in range(batch_size):
             # outputs_emb_radius = torch.norm(outputs, 2, dim=1)
@@ -611,16 +615,26 @@ class NearestClassMeanAssociator():
             id_gen = IdGenerator(
                 dataset_category)  # for every image unique - (reduces amount of to distinguisable colors)
 
-            occupied_pixel_output_mask = torch.zeros((height, width),
-                                        dtype=torch.bool, device=outputs.device)
+            # occupied_pixel_output_mask = torch.zeros((height, width),
+            #                             dtype=torch.bool, device=outputs.device)
 
-            for cat_id in cls_mean_embeddings.keys():
+            outputs_batch_indx_stack = torch.stack([outputs[b] for k in range(len(cls_mean_embeddings))])
 
-                cat_id_mean_emb = cls_mean_embeddings[cat_id]
+            dist_mean_emb2output_emb = torch.norm(torch.sub(outputs_batch_indx_stack, mean_emb_tensor), dim=1)
 
-                cat_id_mean_emb_output_dims = cat_id_mean_emb.repeat(1, no_spatial_embedds).view(cat_id_mean_emb.shape[0], height, width)
+            min_dist_arg = torch.argmin(dist_mean_emb2output_emb, dim=0)
 
-                dist_mean_emb2output_emb = torch.norm(torch.sub(outputs[b], cat_id_mean_emb_output_dims), 1, dim=0)
+            unique_indices = torch.unique(min_dist_arg)
+
+            for unique_index in unique_indices:
+
+                cat_id = mean_emb_cat_id_order_list[unique_index.item()]
+
+                # cat_id_mean_emb = cls_mean_embeddings[cat_id]
+                #
+                # cat_id_mean_emb_output_dims = cat_id_mean_emb.repeat(1, no_spatial_embedds).view(cat_id_mean_emb.shape[0], height, width)
+                #
+                # dist_mean_emb2output_emb = torch.norm(torch.sub(outputs[b], cat_id_mean_emb_output_dims), 1, dim=0)
 
                 # ######
                 # ####
@@ -630,13 +644,15 @@ class NearestClassMeanAssociator():
                 # #######
                 # ######
 
-                outputs_rad_lw_bd_indx = dist_mean_emb2output_emb > radius_lw_bd
-                outputs_rad_up_bd_indx = dist_mean_emb2output_emb < radius_up_bd
-                outputs_rad_mask = torch.logical_and(outputs_rad_lw_bd_indx, outputs_rad_up_bd_indx)
+                # outputs_rad_lw_bd_indx = dist_mean_emb2output_emb > radius_lw_bd
+                # outputs_rad_up_bd_indx = dist_mean_emb2output_emb < radius_up_bd
+                # outputs_rad_mask = torch.logical_and(outputs_rad_lw_bd_indx, outputs_rad_up_bd_indx)
 
-                outputs_rad_mask = torch.logical_and(outputs_rad_mask, torch.logical_not(occupied_pixel_output_mask))
+                outputs_rad_mask = min_dist_arg == unique_index
 
-                occupied_pixel_output_mask = torch.logical_or(outputs_rad_mask, occupied_pixel_output_mask)
+                # outputs_rad_mask = torch.logical_and(outputs_rad_mask, torch.logical_not(occupied_pixel_output_mask))
+
+                # occupied_pixel_output_mask = torch.logical_or(outputs_rad_mask, occupied_pixel_output_mask)
 
                 area = torch.count_nonzero(outputs_rad_mask)
                 if area.item() == 0:
