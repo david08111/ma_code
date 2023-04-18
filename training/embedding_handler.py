@@ -632,7 +632,9 @@ class BatchSampler():
         # pos_embeds = batch_embeds[cat_id][batch_index]
         # test = torch.randint(0, pos_embeds.shape[1] - 1, (num_pos_embeds,))
         num_pos_embeds = min(num_pos_embeds, pos_embeds.shape[1])
-        pos_embeds = pos_embeds[:, torch.randint(0, pos_embeds.shape[1] - 1, (num_pos_embeds,))]
+        # if pos_embeds.shape[1] <= 1:
+        #     pass
+        pos_embeds = pos_embeds[:, torch.randint(0, pos_embeds.shape[1], (num_pos_embeds,))]
 
         neg_embeds = torch.cat([batch_embeds[tmp_cat_id][b] for tmp_cat_id in batch_embeds.keys() if tmp_cat_id != cat_id for b in range(len(batch_embeds[cat_id])) if batch_embeds[tmp_cat_id][b].shape[1] != 0], dim=1)
         num_neg_embeds = min(num_neg_embeds, neg_embeds.shape[1])
