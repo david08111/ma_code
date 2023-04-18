@@ -2075,6 +2075,7 @@ class Hierarchical_cluster_batch_contrast_loss(nn.Module):
                 radius_loss_counter += outputs.shape[0]
 
             for cat_id in mean_embedding_dict:
+                pass
 
 
         if self.similarity_loss_weight > float_precision_thr:
