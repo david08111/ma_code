@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import numpy as np
 import sys
 import logging
+import time
 import random
 from .metrics_new import pq_compute_custom, PQStat
 
@@ -25,6 +26,8 @@ class Loss_Wrapper():
             return Average_sum(**loss_config)
         elif loss_type == "info_nce":
             return InfoNCE(**loss_config)
+        elif loss_type == "hierarchical_cluster_batch_contrast":
+            return Hierarchical_cluster_batch_contrast_loss(**loss_config)
         elif loss_type == "hierarchical_cluster_mean_contrast":
             return Hierarchical_cluster_mean_contrast_loss(**loss_config)
         elif loss_type == "hierarchical_cluster_all_embeds_contrast":
@@ -1367,9 +1370,9 @@ class Panoptic_spherical_contrastive_all_embeds_loss(nn.Module):
 
                     #######
 
-                    pos_cat_id_mean = embedding_handler.embedding_storage.cls_mean_embeddings[unique_cat_id].repeat(outputs_cat_id_embeddings.shape[1], 1).T
+                    pos_cat_id_mean = embedding_handler.embedding_storage.cls_mean_embeddings[unique_cat_id].repeat(query_embeddings.shape[1], 1).T
 
-                    outputs_cat_id_mean_embeddings_radius = torch.norm(torch.sub(outputs_cat_id_embeddings, pos_cat_id_mean), 2, dim=0)
+                    outputs_cat_id_mean_embeddings_radius = torch.norm(torch.sub(query_embeddings, pos_cat_id_mean), 2, dim=0)
 
                     radius_label = torch.full(outputs_cat_id_mean_embeddings_radius.shape, self.radius, device=device)
 
@@ -1937,7 +1940,7 @@ class Panoptic_spherical_contrastive_all_embeds_loss(nn.Module):
 #                 logger.add_scalar(caption_list, self.similarity_loss_item_class_dict[id], epoch)
 
 class Hierarchical_cluster_batch_contrast_loss(nn.Module):
-    def __init__(self, inter_cls_contrastive_loss, intra_cls_contrastive_loss, inter_cls_contrastive_loss_weight=1, intra_cls_contrastive_loss_weight=1, regularization_weight=1):
+    def __init__(self, inter_cls_contrastive_loss, intra_cls_contrastive_loss, reg_loss_norm=2, inter_cls_contrastive_loss_weight=1, intra_cls_contrastive_loss_weight=1, regularization_weight=1):
         super().__init__()
         self.inter_cls_contrastive_loss = Loss_Wrapper(inter_cls_contrastive_loss).loss
         self.intra_cls_contrastive_loss = Loss_Wrapper(intra_cls_contrastive_loss).loss
@@ -1946,6 +1949,8 @@ class Hierarchical_cluster_batch_contrast_loss(nn.Module):
         #
         # self.num_pos_embeddings_intra = num_pos_embeddings_intra
         # self.num_neg_embeddings_intra = num_neg_embeddings_intra
+
+        self.reg_loss_norm = reg_loss_norm
 
         self.inter_cls_contrastive_loss_weight = inter_cls_contrastive_loss_weight
         self.intra_cls_contrastive_loss_weight = intra_cls_contrastive_loss_weight
@@ -1956,6 +1961,8 @@ class Hierarchical_cluster_batch_contrast_loss(nn.Module):
         self.inter_cls_ct_loss_counter = 0
 
         self.intra_cls_ct_loss_counter = 0
+
+        self.regularization_loss_counter = 0
 
 
         # self.radius_loss_item_class_dict = {elem: 0 for elem in self.cat_id_radius_order_map_list}
@@ -1971,7 +1978,7 @@ class Hierarchical_cluster_batch_contrast_loss(nn.Module):
     def forward(self, outputs, masks, annotations_data, *args, **kwargs):
         device = outputs.device
 
-        batch_size = outputs.shape[0]
+        # batch_size = outputs.shape[0]
 
         embedding_handler = kwargs["embedding_handler"]
 
@@ -1982,18 +1989,24 @@ class Hierarchical_cluster_batch_contrast_loss(nn.Module):
 
         intra_cls_contrastive_loss = torch.tensor(0, dtype=torch.float32, device=device)
 
+        regularization_loss = torch.tensor(0, dtype=torch.float32, device=device)
+
         unique_cat_ids = torch.unique(masks[:, 1, :, :])  # skip segment_id=0
 
         outputs_reordered_tmp = torch.permute(outputs, (1, 0, 2, 3))
         masks_reordered_tmp = torch.permute(masks, (1, 0, 2, 3))
 
-        radius_loss_counter = 0
+        intra_cls_ct_loss_counter = 0
 
-        no_spatial_embedds = outputs.shape[-2] * outputs.shape[-1]
+        inter_cls_ct_loss_counter = 0
+
+        regularization_loss_counter = 0
+
+        # no_spatial_embedds = outputs.shape[-2] * outputs.shape[-1]
 
 
 
-        num_categories = len(embedding_handler.cls_mean_embeddings.keys())
+        num_categories = len(embedding_handler.embedding_storage.cls_mean_embeddings.keys())
 
         # mean_embedding_cat_id_indx_list = [i for i in range(len(embedding_handler.cls_mean_embeddings.keys()))]
         #
@@ -2001,17 +2014,14 @@ class Hierarchical_cluster_batch_contrast_loss(nn.Module):
 
         mean_embedding_dict = {}
 
-        if len(self.abs_radius_err_class_dict) != num_categories + 1 or len(
-                self.radius_loss_item_class_dict) != num_categories + 1 \
-                or len(self.similarity_loss_item_class_dict) != num_categories + 1 or len(
-            self.ct_loss_item_class_dict) != num_categories + 1:
-            for cat_id in embedding_handler.cls_mean_embeddings.keys():
+        if len(self.inter_cls_ct_loss_item_class_dict) != num_categories + 1 or len(self.intra_cls_ct_loss_item_class_dict) != num_categories + 1 or len(self.regularization_loss_item_class_dict) != num_categories + 1:
+            for cat_id in embedding_handler.embedding_storage.cls_mean_embeddings.keys():
                 # self.abs_radius_err_class_dict[cat_id] = np.zeros(self.bin_elems)
-                self.radius_loss_item_class_dict[cat_id] = 0
-                self.similarity_loss_item_class_dict[cat_id] = 0
-                self.ct_loss_item_class_dict[cat_id] = 0
+                self.inter_cls_ct_loss_item_class_dict[cat_id] = 0
+                self.intra_cls_ct_loss_item_class_dict[cat_id] = 0
+                self.regularization_loss_item_class_dict[cat_id] = 0
 
-        if self.inter_cls_contrastive_loss_weight > float_precision_thr:
+        if self.intra_cls_contrastive_loss_weight > float_precision_thr:
             # for batch_indx in range(batch_size):
             #     for unique_cat_id in unique_cat_ids[1:]:  # skip 0
 
@@ -2037,165 +2047,75 @@ class Hierarchical_cluster_batch_contrast_loss(nn.Module):
 
                 mean_embedding_dict[unique_cat_id] = cat_id_mean_embedding_single
 
-                cat_id_mean_embedding = cat_id_mean_embedding_single.repeat(1, outputs_cat_id_embeddings.shape[1])
+                cat_id_mean_embedding = cat_id_mean_embedding_single.repeat( outputs_cat_id_embeddings.shape[1], 1).T
                 # cat_id_mean_embedding_tensor = cls_mean_embeddings[unique_cat_id].repeat(1, outputs_cat_id_embeddings.shape[1])
 
                 # inter_cls_contrastive_loss += self.inter_cls_contrastive_loss(outputs_cat_id_embeddings, cat_id_mean_embedding_tensor)
 
                 intra_cls_contrastive_loss += self.intra_cls_contrastive_loss(outputs_cat_id_embeddings, cat_id_mean_embedding)
 
-                # ct_loss_part += self.sphere_ct_contr_loss(None, None, query=query_embeddings,
-                #                                           positive_keys=pos_embeddings,
-                #                                           negative_keys=neg_embeddings)
 
-                #######
 
                 # outputs_cat_id_mean_embeddings_radius = torch.norm(torch.sub(outputs_cat_id_embeddings, pos_embeddings),
                 #                                                    2, dim=0)
-                #
-                # radius_label = torch.full(outputs_cat_id_mean_embeddings_radius.shape, self.radius, device=device)
-                #
-                # radius_loss_part += self.radius_loss(outputs_cat_id_mean_embeddings_radius, radius_label)
-                #
-                # ###### radius hist
-                # abs_error = torch.abs(outputs_cat_id_mean_embeddings_radius - radius_label).detach().cpu().numpy()
-                #
-                # # abs_error_histogram = np.histogram(abs_error, bins=np.arange())
-                #
-                # np_hist, bins = np.histogram(abs_error, self.abs_radius_err_class_dict["bins"])
-                #
-                # self.abs_radius_err_class_dict[unique_cat_id] += np_hist
-                #
-                # self.radius_loss_item_class_dict[unique_cat_id] += radius_loss_part.item()
-                #
-                # self.ct_loss_item_class_dict[unique_cat_id] += ct_loss_part.item()
 
-                ##########
+                intra_cls_ct_loss_counter += outputs.shape[0]
 
-                radius_loss_counter += outputs.shape[0]
 
+        if self.inter_cls_contrastive_loss_weight > float_precision_thr:
             for cat_id in mean_embedding_dict:
-                pass
 
+                for neg_cat_id in mean_embedding_dict:
+                    if cat_id == neg_cat_id:
+                        continue
 
-        if self.similarity_loss_weight > float_precision_thr:
-            for b in range(batch_size):
+                    inter_cls_contrastive_loss += self.inter_cls_contrastive_loss(mean_embedding_dict[cat_id], mean_embedding_dict[neg_cat_id])
 
-                inst_discr_masks = masks_reordered_tmp[:2, b, masks[b, 2, :, :] == True]
+            inter_cls_ct_loss_counter = len(mean_embedding_dict) * (len(mean_embedding_dict) - 1) * outputs.shape[0]
 
-                unique_cat_ids = torch.unique(inst_discr_masks[1, :])
+        if self.regularization_weight > float_precision_thr:
+            for cat_id in mean_embedding_dict:
+                regularization_loss += torch.norm(mean_embedding_dict[cat_id], self.reg_loss_norm)
 
-                for unique_cat_id in unique_cat_ids:
-                    unique_cat_id = int(unique_cat_id.item())
-                    segments_id_data = masks_reordered_tmp[:, b,
-                                       masks_reordered_tmp[1, b, :, :] == unique_cat_id]
+            regularization_loss_counter = len(mean_embedding_dict) * outputs.shape[0]
 
-                    unique_segment_ids = torch.unique(segments_id_data[0, :])
+        self.inter_cls_ct_loss_item_class_dict["all"] += inter_cls_contrastive_loss.item()
+        self.intra_cls_ct_loss_item_class_dict["all"] += intra_cls_contrastive_loss.item()
+        self.regularization_loss_item_class_dict["all"] += regularization_loss.item()
 
-                    segment_id_embeddings_dict = {}
-                    # gather embeddings and calculate cosineembeddingloss with itself
+        if intra_cls_ct_loss_counter > 0:
+            intra_cls_contrastive_loss /= intra_cls_ct_loss_counter
 
-                    for unique_segment_id in unique_segment_ids:
-                        segment_id_embeddings = outputs[b, :,
-                                                masks_reordered_tmp[0, b, :, :] == unique_segment_id]
-                        segment_id_embeddings_dict[unique_segment_id.item()] = segment_id_embeddings
+        if inter_cls_ct_loss_counter > 0:
+            inter_cls_contrastive_loss /= inter_cls_ct_loss_counter
 
-                        segment_id_embeddings = torch.div(segment_id_embeddings,
-                                                          torch.norm(segment_id_embeddings, 2,
-                                                                     dim=0) + 0.000001)
-                        dot_product_embeddings = torch.matmul(torch.transpose(segment_id_embeddings, 0, 1),
-                                                              segment_id_embeddings)
+        if regularization_loss_counter > 0:
+            regularization_loss /= regularization_loss_counter
 
-                        dot_product_embeddings = torch.triu(dot_product_embeddings)
-                        # test = dot_product_embeddings.nonzero(as_tuple=True)
-                        dot_product_embeddings = dot_product_embeddings[
-                            dot_product_embeddings.nonzero(as_tuple=True)]
-                        dot_product_embeddings = torch.mul(dot_product_embeddings, -1)
-                        dot_product_embeddings = torch.add(dot_product_embeddings, 1)
-                        dot_product_embeddings_mean = torch.mean(dot_product_embeddings)
-                        similarity_loss += dot_product_embeddings_mean
-                        similarity_loss_counter += 1
+        self.intra_cls_ct_loss_counter += intra_cls_ct_loss_counter
+        self.inter_cls_ct_loss_counter += inter_cls_ct_loss_counter
+        self.regularization_loss_counter += regularization_loss_counter
 
-                        self.similarity_loss_item_class_dict[unique_cat_id] += similarity_loss.item()
-
-                        # loss_item_similarity_key_tmp = f"Similarity Loss/Part - Cat ID - {unique_cat_id} - Similar"
-                        # if loss_item_similarity_key_tmp not in loss_items_dict:
-                        #     loss_items_dict[loss_item_similarity_key_tmp] = similarity_loss.item()
-                        # else:
-                        #     loss_items_dict[loss_item_similarity_key_tmp] += similarity_loss.item()
-
-                    for i in range(unique_segment_ids.shape[0] - 1):
-                        unique_segment_id = unique_segment_ids[i]
-                        for neg_unique_segment_id in unique_segment_ids[i + 1:]:
-                            curr_embedding = segment_id_embeddings_dict[unique_segment_id.item()]
-                            neg_embedding = segment_id_embeddings_dict[neg_unique_segment_id.item()]
-
-                            curr_embedding = torch.div(curr_embedding,
-                                                       torch.norm(curr_embedding, 2, dim=0) + 0.000001)
-                            neg_embedding = torch.div(neg_embedding,
-                                                      torch.norm(neg_embedding, 2, dim=0) + 0.000001)
-
-                            dot_product_embeddings = torch.matmul(torch.transpose(curr_embedding, 0, 1),
-                                                                  neg_embedding)
-
-                            dot_product_embeddings = torch.triu(dot_product_embeddings)
-                            # test = dot_product_embeddings.nonzero(as_tuple=True)
-                            dot_product_embeddings = dot_product_embeddings[
-                                dot_product_embeddings.nonzero(as_tuple=True)]
-                            dot_product_embeddings = torch.add(dot_product_embeddings,
-                                                               -self.cosine_emb_loss_margin)
-                            dot_product_embeddings = torch.clamp(dot_product_embeddings, min=0)
-                            dot_product_embeddings_mean = torch.mean(dot_product_embeddings)
-
-                            similarity_loss += dot_product_embeddings_mean
-                            similarity_loss_counter += 1
-
-                            self.similarity_loss_item_class_dict[unique_cat_id] += similarity_loss.item()
-
-                            # loss_item_similarity_key_tmp = f"Similarity Loss/Part - Cat ID - {unique_cat_id} - Disimilar"
-                            # if loss_item_similarity_key_tmp not in loss_items_dict:
-                            #     loss_items_dict[loss_item_similarity_key_tmp] = similarity_loss.item()
-                            # else:
-                            #     loss_items_dict[loss_item_similarity_key_tmp] += similarity_loss.item()
-
-        self.radius_loss_item_class_dict["all"] += radius_loss_part.item()
-        self.similarity_loss_item_class_dict["all"] += similarity_loss.item()
-        self.ct_loss_item_class_dict["all"] += ct_loss_part.item()
-
-        if radius_loss_counter > 0:
-            radius_loss_part /= radius_loss_counter
-
-
-            # for key in loss_items_dict.keys():
-            #     if "Radius" in key:
-            #         loss_items_dict[key] /= radius_loss_counter
-
-        if similarity_loss_counter > 0:
-            similarity_loss /= similarity_loss_counter
-
-            # for key in loss_items_dict.keys():
-            #     if "Similarity" in key:
-            #         loss_items_dict[key] /= similarity_loss_counter
-
-        self.radius_loss_counter += radius_loss_counter
-        self.similarity_loss_counter += similarity_loss_counter
-
-        total_loss = self.radius_loss_weight * radius_loss_part + self.similarity_loss_weight * similarity_loss + self.sphere_ct_contr_loss_weight * ct_loss_part
+        total_loss = self.intra_cls_contrastive_loss_weight * intra_cls_contrastive_loss + self.inter_cls_contrastive_loss_weight * inter_cls_contrastive_loss + self.regularization_weight * regularization_loss
 
         # return total_loss, loss_items_dict
         return total_loss
 
     def process_end_batch(self):
-        for key in self.radius_loss_item_class_dict:
-            self.radius_loss_item_class_dict[key] /= self.radius_loss_counter
+        for key in self.inter_cls_ct_loss_item_class_dict:
+            self.inter_cls_ct_loss_item_class_dict[key] /= self.inter_cls_ct_loss_counter
 
-        for key in self.ct_loss_item_class_dict:
-            self.ct_loss_item_class_dict[key] /= self.radius_loss_counter
+        for key in self.intra_cls_ct_loss_item_class_dict:
+            self.intra_cls_ct_loss_item_class_dict[key] /= self.intra_cls_ct_loss_counter
 
-        for key in self.similarity_loss_item_class_dict:
-            self.similarity_loss_item_class_dict[key] /= self.radius_loss_counter
+        for key in self.regularization_loss_item_class_dict:
+            self.regularization_loss_item_class_dict[key] /= self.regularization_loss_counter
 
-        self.radius_loss_counter = 0
+        self.inter_cls_ct_loss_counter = 0
+
+        self.intra_cls_ct_loss_counter = 0
+
+        self.regularization_loss_counter = 0
 
     def log(self, logger, name, epoch, *args, **kwargs):
         if "categories" in kwargs:
@@ -2211,41 +2131,41 @@ class Hierarchical_cluster_batch_contrast_loss(nn.Module):
 
 
 
-        for id in self.radius_loss_item_class_dict:
+        for id in self.inter_cls_ct_loss_item_class_dict:
             if id == "all":
-                caption = f"{caption_name}/Item - Radius Loss"
-                logger.add_text(f"{caption} - {self.radius_loss_item_class_dict[id]}", logging.INFO, epoch)
-                caption_list = name + ["Item - Radius Loss"]
-                logger.add_scalar(caption_list, self.radius_loss_item_class_dict[id], epoch)
+                caption = f"{caption_name}/Item - Inter Class Contrastive Loss"
+                logger.add_text(f"{caption} - {self.inter_cls_ct_loss_item_class_dict[id]}", logging.INFO, epoch)
+                caption_list = name + ["Item - Inter Class Contrastive Loss"]
+                logger.add_scalar(caption_list, self.inter_cls_ct_loss_item_class_dict[id], epoch)
             else:
-                caption = f"{caption_name}/Item - Radius Loss/Part - {categories_dict[id]['name']}"
-                logger.add_text(f"{caption} - {self.radius_loss_item_class_dict[id]}", logging.INFO, epoch)
-                caption_list = name + ["Item - Radius Loss", f"Part - {categories_dict[id]['name']}"]
-                logger.add_scalar(caption_list, self.radius_loss_item_class_dict[id], epoch)
+                caption = f"{caption_name}/Item - Inter Class Contrastive Loss/Part - {categories_dict[id]['name']}"
+                logger.add_text(f"{caption} - {self.inter_cls_ct_loss_item_class_dict[id]}", logging.INFO, epoch)
+                caption_list = name + ["Item - Inter Class Contrastive Loss", f"Part - {categories_dict[id]['name']}"]
+                logger.add_scalar(caption_list, self.inter_cls_ct_loss_item_class_dict[id], epoch)
 
-        for id in self.ct_loss_item_class_dict:
+        for id in self.intra_cls_ct_loss_item_class_dict:
             if id == "all":
-                caption = f"{caption_name}/Item - Contrastive Loss"
-                logger.add_text(f"{caption} - {self.ct_loss_item_class_dict[id]}", logging.INFO, epoch)
-                caption_list = name + ["Item - Contrastive Loss"]
-                logger.add_scalar(caption_list, self.ct_loss_item_class_dict[id], epoch)
+                caption = f"{caption_name}/Item - Intra Class Contrastive Loss"
+                logger.add_text(f"{caption} - {self.intra_cls_ct_loss_item_class_dict[id]}", logging.INFO, epoch)
+                caption_list = name + ["Item - Intra Class Contrastive Loss"]
+                logger.add_scalar(caption_list, self.intra_cls_ct_loss_item_class_dict[id], epoch)
             else:
-                caption = f"{caption_name}/Item - Contrastive Loss/Part - {categories_dict[id]['name']}"
-                logger.add_text(f"{caption} - {self.ct_loss_item_class_dict[id]}", logging.INFO, epoch)
-                caption_list = name + ["Item - Contrastive Loss", f"Part - {categories_dict[id]['name']}"]
-                logger.add_scalar(caption_list, self.ct_loss_item_class_dict[id], epoch)
+                caption = f"{caption_name}/Item - Intra Class Contrastive Loss/Part - {categories_dict[id]['name']}"
+                logger.add_text(f"{caption} - {self.intra_cls_ct_loss_item_class_dict[id]}", logging.INFO, epoch)
+                caption_list = name + ["Item - Intra Class Contrastive Loss", f"Part - {categories_dict[id]['name']}"]
+                logger.add_scalar(caption_list, self.intra_cls_ct_loss_item_class_dict[id], epoch)
 
-        for id in self.similarity_loss_item_class_dict:
+        for id in self.regularization_loss_item_class_dict:
             if id == "all":
-                caption = f"{caption_name}/Item - Similarity Loss"
-                logger.add_text(f"{caption} - {self.similarity_loss_item_class_dict[id]}", logging.INFO, epoch)
-                caption_list = name + ["Item - Similarity Loss"]
-                logger.add_scalar(caption_list, self.similarity_loss_item_class_dict[id], epoch)
+                caption = f"{caption_name}/Item - Regularization Loss"
+                logger.add_text(f"{caption} - {self.regularization_loss_item_class_dict[id]}", logging.INFO, epoch)
+                caption_list = name + ["Item - Regularization Loss"]
+                logger.add_scalar(caption_list, self.regularization_loss_item_class_dict[id], epoch)
             else:
-                caption = f"{caption_name}/Item - Similarity Loss/Part - {categories_dict[id]['name']}"
-                logger.add_text(f"{caption} - {self.similarity_loss_item_class_dict[id]}", logging.INFO, epoch)
-                caption_list = name + ["Item - Similarity Loss", f"Part - {categories_dict[id]['name']}"]
-                logger.add_scalar(caption_list, self.similarity_loss_item_class_dict[id], epoch)
+                caption = f"{caption_name}/Item - Regularization Loss/Part - {categories_dict[id]['name']}"
+                logger.add_text(f"{caption} - {self.regularization_loss_item_class_dict[id]}", logging.INFO, epoch)
+                caption_list = name + ["Item - Regularization Loss", f"Part - {categories_dict[id]['name']}"]
+                logger.add_scalar(caption_list, self.regularization_loss_item_class_dict[id], epoch)
 
 class Hierarchical_cluster_mean_contrast_loss(nn.Module):
     def __init__(self, inter_cls_contrastive_loss, intra_cls_contrastive_loss, inter_cls_contrastive_loss_weight=1, intra_cls_contrastive_loss_weight=1, regularization_weight=1):
@@ -2270,6 +2190,8 @@ class Hierarchical_cluster_mean_contrast_loss(nn.Module):
 
         #######
         radius_granularity = 10
+
+        self.radius = 1
 
         self.bin_elems = 11
         self.bin_step = self.radius / radius_granularity
@@ -2318,7 +2240,7 @@ class Hierarchical_cluster_mean_contrast_loss(nn.Module):
 
         batch_cat_id_embeds = {} #outputs.view(outputs.shape[0], outputs.shape[1], -1)
 
-        num_categories = len(embedding_handler.cls_mean_embeddings.keys())
+        num_categories = len(embedding_handler.embedding_storage.cls_mean_embeddings.keys())
         if len(self.abs_radius_err_class_dict) != num_categories + 1 or len(
                 self.radius_loss_item_class_dict) != num_categories + 1 \
                 or len(self.similarity_loss_item_class_dict) != num_categories + 1 or len(
@@ -2636,7 +2558,7 @@ class Hierarchical_cluster_all_embeds_contrast_loss(nn.Module):
 
         batch_cat_id_embeds = {} #outputs.view(outputs.shape[0], outputs.shape[1], -1)
 
-        num_categories = len(embedding_handler.cls_mean_embeddings.keys())
+        num_categories = len(embedding_handler.embedding_storage.cls_mean_embeddings.keys())
         if len(self.abs_radius_err_class_dict) != num_categories + 1 or len(
                 self.radius_loss_item_class_dict) != num_categories + 1 \
                 or len(self.similarity_loss_item_class_dict) != num_categories + 1 or len(
@@ -2928,21 +2850,20 @@ class Hierarchical_cluster_all_embeds_contrast_loss(nn.Module):
 
 class MSELossHingedPosWrapper(nn.Module):
     " [margin - norm(inputs, targets)]^2_+"
-    def __init__(self, norm, margin, size_average=None, reduce=None, reduction=None):
+    def __init__(self, norm, margin):
         super().__init__()
         self.margin = margin
-        self.mse_loss = nn_modules.MSELoss(size_average=size_average, reduce=reduce, reduction=reduction)
+        # self.mse_loss = nn_modules.MSELoss(reduction=reduction)
         self.norm = norm
 
     def forward(self, inputs, targets, *args, **kwargs):
         # inner_loss = self.inner_loss(inputs, targets)
-        normed = torch.norm(inputs, targets, self.norm)
-        eval_loss = self.mse_loss(torch.sub(torch.full(normed.shape, self.margin), normed))
-        return torch.mean(torch.max(0, eval_loss))
-
-        return torch.mean(torch.where(eval_loss > 0, eval_loss, 0))
-
-        return torch.mean(eval_loss[eval_loss > 0])
+        normed = torch.norm(torch.sub(inputs, targets), self.norm, dim=0)
+        # eval_loss = self.mse_loss(torch.full(normed.shape, self.margin, device=normed.device), normed)
+        eval_loss = torch.sub(torch.full(normed.shape, self.margin, device=normed.device), normed)
+        max_eval = torch.max(torch.zeros(eval_loss.shape, device=normed.device), eval_loss)
+        # sq = torch.square(max_eval)
+        return torch.mean(torch.square(max_eval))
 
     def process_end_batch(self):
         pass
@@ -2952,20 +2873,37 @@ class MSELossHingedPosWrapper(nn.Module):
 
 class MSELossHingedNegWrapper(nn.Module):
     " [norm(inputs, targets) - margin]^2_+"
-    def __init__(self, norm, margin, size_average=None, reduce=None, reduction=None):
+    def __init__(self, norm, margin):
         super().__init__()
         self.margin = margin
-        self.mse_loss = nn_modules.MSELoss(size_average=size_average, reduce=reduce, reduction=reduction)
+        # self.mse_loss = nn_modules.MSELoss(reduction=reduction)
         self.norm = norm
 
     def forward(self, inputs, targets, *args, **kwargs):
-        normed = torch.norm(inputs, targets, self.norm)
-        eval_loss = self.mse_loss(torch.sub(normed, torch.full(normed.shape, self.margin)))
-        return torch.mean(torch.max(0, eval_loss))
+        normed = torch.norm(torch.sub(inputs, targets), self.norm, dim=0)
+        # test1 = torch.full(normed.shape, self.margin, device=normed.device)
 
-        return torch.mean(torch.where(eval_loss > 0, eval_loss, 0))
+        # eval_loss = self.mse_loss(normed, torch.full(normed.shape, self.margin, device=normed.device))
+        eval_loss = torch.sub(normed, torch.full(normed.shape, self.margin, device=normed.device))
+        # test2 = torch.max(torch.zeros(eval_loss.shape, device=normed.device), eval_loss)
 
-        return torch.mean(eval_loss[eval_loss > 0])
+        max_eval = torch.max(torch.zeros(eval_loss.shape, device=normed.device), eval_loss)
+        # sq = torch.square(max_eval)
+        return torch.mean(torch.square(max_eval))
+        # start_time = time.time()
+        # test10 = torch.mean(torch.max(torch.zeros(eval_loss.shape, device=normed.device), eval_loss))
+        # print(f"Time1: {time.time() - start_time}")
+        #
+        # start_time = time.time()
+        # test11 = torch.mean(torch.where(eval_loss > 0, eval_loss, 0))
+        # print(f"Time1: {time.time() - start_time}")
+        #
+        # start_time = time.time()
+        # test12 = torch.mean(eval_loss[eval_loss > 0])
+        # print(f"Time1: {time.time() - start_time}")
+
+        # return torch.mean(torch.max(torch.zeros(eval_loss.shape, device=normed.device), eval_loss))
+
 
     def process_end_batch(self):
         pass
@@ -2975,20 +2913,18 @@ class MSELossHingedNegWrapper(nn.Module):
 
 class L1LossHingedPosWrapper(nn.Module):
     " [margin - norm(inputs, targets)]^1_+"
-    def __init__(self, norm, margin, size_average=None, reduce=None, reduction=None):
+    def __init__(self, norm, margin):
         super().__init__()
         self.margin = margin
-        self.l1_loss = nn_modules.L1Loss(size_average=size_average, reduce=reduce, reduction=reduction)
+        # self.l1_loss = nn_modules.L1Loss(size_average=size_average, reduce=reduce, reduction=reduction)
         self.norm = norm
 
     def forward(self, inputs, targets, *args, **kwargs):
-        normed = torch.norm(inputs, targets, self.norm)
-        eval_loss = self.l1_loss(torch.sub(torch.full(normed.shape, self.margin), normed))
-        return torch.mean(torch.max(0, eval_loss))
-
-        return torch.mean(torch.where(eval_loss > 0, eval_loss, 0))
-
-        return torch.mean(eval_loss[eval_loss > 0])
+        normed = torch.norm(torch.sub(inputs, targets), self.norm, dim=0)
+        eval_loss = torch.sub(torch.full(normed.shape, self.margin, device=normed.device), normed)
+        max_eval = torch.max(torch.zeros(eval_loss.shape, device=normed.device), eval_loss)
+        return torch.mean(max_eval)
+        # return torch.mean(torch.max(torch.zeros(eval_loss.shape, device=normed.device), eval_loss))
 
     def process_end_batch(self):
         pass
@@ -3005,13 +2941,12 @@ class L1LossHingedNegWrapper(nn.Module):
         self.norm = norm
 
     def forward(self, inputs, targets, *args, **kwargs):
-        normed = torch.norm(inputs, targets, self.norm)
-        eval_loss = self.l1_loss(torch.sub(normed, torch.full(normed.shape, self.margin)))
-        return torch.mean(torch.max(0, eval_loss))
+        normed = torch.norm(torch.sub(inputs, targets), self.norm, dim=0)
+        eval_loss = torch.sub(normed, torch.full(normed.shape, self.margin, device=normed.device))
+        max_eval = torch.max(torch.zeros(eval_loss.shape, device=normed.device), eval_loss)
+        return torch.mean(max_eval)
+        # return torch.mean(torch.max(torch.zeros(eval_loss.shape, device=normed.device), eval_loss))
 
-        return torch.mean(torch.where(eval_loss > 0, eval_loss, 0))
-
-        return torch.mean(eval_loss[eval_loss > 0])
 
     def process_end_batch(self):
         pass

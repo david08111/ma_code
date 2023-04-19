@@ -6,7 +6,7 @@
 #    model_architecture_origin: segmentation_models_pytorch
 #    model_architecture_name: unet_inceptionresnetv2
 #    pretrained: True
-#    embedding_dims: 50
+#    embedding_dims: 150
 #  channels: 3
 #  output_creation:  # first list element will be used to create the panoptic output prediction
 ##    - multi_sphere_association:
@@ -39,7 +39,7 @@
 #    warmup:
 #      start_lr: 0.00001
 #      end_lr: 0.001
-#      num_steps: 3000
+#      num_steps: 2500
 #
 #scheduler:
 #  reduce_on_plateau:
@@ -50,11 +50,11 @@
 #    cooldown: 20
 #
 #training:
-#  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/test_debug8"
+#  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/hierarchical_batch_contrast"
 ##  gpu_ids: [0]
 #  save_freq: 10
 #  metrics_calc_freq: 10
-#  num_epochs: 100
+#  num_epochs: 120
 #  use_cpp: False
 #  AMP: False
 #  compile: False
@@ -69,7 +69,7 @@
 #
 #loss:
 #  train_loss:
-#    hierarchical_cluster_mean_contrast:
+#    hierarchical_cluster_batch_contrast:
 #      inter_cls_contrastive_loss:
 #        mse_hinged_pos:
 #          margin: 3
@@ -84,11 +84,12 @@
 ##          inner_loss:
 ##            mse:
 ##              reduction: None
+#      reg_loss_norm: 2
 #      inter_cls_contrastive_loss_weight: 1
 #      intra_cls_contrastive_loss_weight: 1
 #      regularization_weight: 0.001
 #  val_loss:
-#    hierarchical_cluster_mean_contrast:
+#    hierarchical_cluster_batch_contrast:
 #      inter_cls_contrastive_loss:
 #        mse_hinged_pos:
 #          margin: 3
@@ -103,6 +104,7 @@
 #      #          inner_loss:
 #      #            mse:
 #      #              reduction: None
+#      reg_loss_norm: 2
 #      inter_cls_contrastive_loss_weight: 1
 #      intra_cls_contrastive_loss_weight: 1
 #      regularization_weight: 0.001
@@ -114,8 +116,8 @@
 #
 #
 #data:
-#  datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref_debug_bigger.yaml"
-#  batch_size: 4
+#  datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref.yaml"
+#  batch_size: 8
 #  num_workers: 4
 #  prefetch_factor: 4 # currently deprecated
 #  img_width: 512
@@ -125,7 +127,7 @@
 #
 #logging:
 #  name: "LOG"
-#  save_path: "/work/scratch/dziuba/ma_code_runs/logs/test_debug8"
+#  save_path: "/work/scratch/dziuba/ma_code_runs/logs/hierarchical_batch_contrast"
 #  num_log_img: 5
 #  log_graph: False
 #  wandb_config:
@@ -138,10 +140,6 @@
 #
 ##  img_log_freq: 10 # set by metrics_calc_freq
 ##  num_log_img: 5
-#
-#
-#
-#
 #
 #
 #
@@ -166,9 +164,7 @@ model:
 #          identity: {} # no args specified
 #    - sphere_coords:
 #        mean_origin: False
-    - multi_sphere_association_flexible:
-        radius: 1
-        radius_association_margin: 0.5  # max deviation from radius to still associate to closest radius
+    - nearest_class_mean_association:
         instance_clustering_method:
           identity: { } # no args specified
     - radius:
@@ -183,7 +179,7 @@ optimizer:
     warmup:
       start_lr: 0.00001
       end_lr: 0.001
-      num_steps: 1500
+      num_steps: 3000
 
 scheduler:
   reduce_on_plateau:
@@ -194,7 +190,7 @@ scheduler:
     cooldown: 20
 
 training:
-  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/sphere_contrast_all_embeds_debug"
+  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/sphere_contrast_all_embeds_no_radius_debug2"
 #  gpu_ids: [0]
   save_freq: 10
   metrics_calc_freq: 10
@@ -227,7 +223,7 @@ loss:
         reverse_huber_threshold: { }
       radius: 1
       sphere_ct_contr_loss_weight: 0.5
-      radius_loss_weight: 0.5
+      radius_loss_weight: 0
       similarity_loss_weight: 0
       cosine_emb_loss_margin: -1
 #    weighted_sum:
@@ -261,7 +257,7 @@ loss:
         reverse_huber_threshold: { }
       radius: 1
       sphere_ct_contr_loss_weight: 0.5
-      radius_loss_weight: 0.5
+      radius_loss_weight: 0
       similarity_loss_weight: 0
       cosine_emb_loss_margin: -1
   metrics:
@@ -283,7 +279,7 @@ data:
 
 logging:
   name: "LOG"
-  save_path: "/work/scratch/dziuba/ma_code_runs/logs/sphere_contrast_all_embeds_debug"
+  save_path: "/work/scratch/dziuba/ma_code_runs/logs/sphere_contrast_all_embeds_no_radius_debug2"
   num_log_img: 5
   log_graph: False
   wandb_config:
