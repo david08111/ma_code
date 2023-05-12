@@ -375,7 +375,8 @@ class MultiSphereAssociatorFlexible():
 
                 cat_id_mean_emb = cls_mean_embeddings[cat_id]
 
-                cat_id_mean_emb_output_dims = cat_id_mean_emb.repeat(1, no_spatial_embedds).view(cat_id_mean_emb.shape[0], height, width)
+                # cat_id_mean_emb_output_dims = cat_id_mean_emb.repeat(1, no_spatial_embedds).view(cat_id_mean_emb.shape[0], height, width)
+                cat_id_mean_emb_output_dims = cat_id_mean_emb.unsqueeze(-1).unsqueeze(-1).expand(-1, height, width)
 
                 dist_mean_emb2output_emb = torch.norm(torch.sub(outputs[b], cat_id_mean_emb_output_dims), 2, dim=0)
 
@@ -604,7 +605,22 @@ class NearestClassMeanAssociator():
 
         mean_emb_cat_id_order_list = [tmp_cat_id for tmp_cat_id in cls_mean_embeddings.keys()]
 
-        mean_emb_tensor = torch.stack([cls_mean_embeddings[tmp_cat_id].repeat(1, no_spatial_embedds).view(cls_mean_embeddings[tmp_cat_id].shape[0], height, width) for tmp_cat_id in mean_emb_cat_id_order_list])
+        # mean_emb_tensor = torch.stack([cls_mean_embeddings[tmp_cat_id].repeat(1, no_spatial_embedds).view(cls_mean_embeddings[tmp_cat_id].shape[0], height, width) for tmp_cat_id in mean_emb_cat_id_order_list])
+        mean_emb_tensor = torch.stack([cls_mean_embeddings[tmp_cat_id].unsqueeze(-1).unsqueeze(-1).expand(-1, height, width) for tmp_cat_id in mean_emb_cat_id_order_list])
+
+        #####
+        # mean_embedding_db7_ref = cls_mean_embeddings[7].detach().cpu().numpy()
+        # mean_embedding_db7_single = cls_mean_embeddings[7].repeat(1, no_spatial_embedds).view(cls_mean_embeddings[7].shape[0], height, width).detach().cpu().numpy()
+        # mean_embedding_db7_new = cls_mean_embeddings[7].repeat(1, width, height).detach().cpu().numpy()
+        # mean_embedding_db7_exp = cls_mean_embeddings[7].unsqueeze(-1).unsqueeze(-1).expand(-1, width, height).detach().cpu().numpy()
+        #
+        # mean_embedding_db7 = cls_mean_embeddings[7].detach().cpu().numpy()
+        # mean_embedding_db22 = cls_mean_embeddings[22].detach().cpu().numpy()
+        # mean_embedding_db32 = cls_mean_embeddings[32].detach().cpu().numpy()
+        # #
+        # mean_emb_tensor_db = mean_emb_tensor.detach().cpu().numpy()
+
+        #####
 
         for b in range(batch_size):
             # outputs_emb_radius = torch.norm(outputs, 2, dim=1)
