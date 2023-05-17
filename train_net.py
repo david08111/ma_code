@@ -1,6 +1,9 @@
 import torch
 import argparse
 import os
+import rmm, pprint
+import cudf
+import cuml
 from utils import Config, create_config_dict, update_config_dict
 from data_handling import DataHandler, custom_collate_fn, custom_collate_fn2
 from training import Net_trainer
@@ -10,9 +13,8 @@ from models import Model
 from torch.utils.data import DataLoader
 
 
-
 def train_net(config_path, verbose):
-    torch.manual_seed(10)
+    # torch.manual_seed(10)
 
     # torch.backends.cudnn.benchmark = True
 
@@ -31,16 +33,18 @@ def train_net(config_path, verbose):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # device = torch.device("cuda" if not config_dict["training"]["use_cpp"] else "cpu")
 
-    # data = {
-    #     "train_loader": DataLoader(
-    #         dataset=DataHandler(config_dict["data"]["datasets_split"]["train_set"], config_dict, device), batch_size=config_dict["data"]["batch_size"], shuffle=True,
-    #         num_workers=config_dict["data"]["num_workers"], drop_last=True, pin_memory=True, collate_fn=custom_collate_fn2, prefetch_factor=config_dict["data"]["prefetch_factor"]),
-    #
-    #     "val_loader": DataLoader(
-    #         dataset=DataHandler(config_dict["data"]["datasets_split"]["val_set"], config_dict, device),
-    #         batch_size=1, shuffle=False, num_workers=config_dict["data"]["num_workers"], drop_last=False,
-    #         pin_memory=True, collate_fn=custom_collate_fn2, prefetch_factor=config_dict["data"]["prefetch_factor"])
-    # }
+    rmm.reinitialize(pool_allocator=True,
+                     initial_pool_size=2e9,
+                     maximum_pool_size=2e9)
+    # mr = rmm.mr.get_current_device_resource()
+    # stats_pool_memory_resource = rmm.mr.StatisticsResourceAdaptor(mr)
+    # rmm.mr.set_current_device_resource(stats_pool_memory_resource)
+
+    torch.manual_seed(10)
+    # torch.backends.cudnn.benchmark = True
+    # torch.cuda.memory.change_current_allocator(rmm.rmm_torch_allocator)
+
+
 
     data = {
         "train_loader": DataLoader(

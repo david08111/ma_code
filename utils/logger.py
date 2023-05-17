@@ -1,6 +1,7 @@
 import logging
 import os
-
+import rmm, pprint
+import cuml
 import torch
 import numpy as np
 import wandb
@@ -58,8 +59,12 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
             sampler_config = {}
             self.sampler = SamplerWrapper(sampler_name, sampler_config)
 
-        logging.basicConfig(filename=os.path.join(save_path, name + ".log"), format='Time - %(asctime)s - %(levelname)s - %(message)s', filemode='w', encoding='utf-8', level=logging.INFO, force=True)
-
+        # logging.basicConfig(filename=os.path.join(save_path, name + ".log"), format='Time - %(asctime)s - %(levelname)s - %(message)s', filemode='w', encoding='utf-8', level=logging.INFO, force=True)
+        txt_logger = logging.getLogger()
+        txt_logger.setLevel(logging.INFO)
+        logging_txt_handler = logging.FileHandler(os.path.join(save_path, name + ".log"), encoding='utf-8')
+        logging_txt_handler.setFormatter(logging.Formatter('Time - %(asctime)s - %(levelname)s - %(message)s'))
+        txt_logger.addHandler(logging_txt_handler)
         # self.logging_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         # logging.setFormatter(self.logging_formatter)
         self.tb_logger = SummaryWriter(os.path.join(save_path, name + "_tb"), filename_suffix=".log")

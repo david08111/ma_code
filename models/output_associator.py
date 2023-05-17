@@ -2,9 +2,14 @@ import sklearn.cluster
 import sklearn.datasets
 import torch
 import numpy as np
+import time
+# import cuml
+import hdbscan
 from matplotlib import pyplot as plt
 from panopticapi.utils import IdGenerator
 from abc import abstractmethod, ABC
+import cuml
+
 
 class EmbeddingOutputAssociatorWrapper():
     def __init__(self, name, *args, **kwargs):
@@ -637,7 +642,9 @@ class NearestClassMeanAssociator():
             outputs_batch_indx_stack = torch.stack([outputs[b] for k in range(len(cls_mean_embeddings))])
 
             dist_mean_emb2output_emb = torch.norm(torch.sub(outputs_batch_indx_stack, mean_emb_tensor), dim=1)
-
+            # mean_emb_tensor_test = mean_emb_tensor.detach().cpu().numpy()
+            # outputs_batch_indx_test = outputs_batch_indx_stack.detach().cpu().numpy()
+            # dist_test = dist_mean_emb2output_emb.detach().cpu().numpy()
             min_dist_arg = torch.argmin(dist_mean_emb2output_emb, dim=0)
 
             unique_indices = torch.unique(min_dist_arg)
@@ -819,12 +826,25 @@ class ClusteringWrapper():
             return IdentityClusterer(**kwargs)
         if name == "dbscan":
             return DBSCANClusterer(kwargs)
+        if name == "hdbscan":
+            return HDBSCANClusterer(kwargs)
         if name == "mean_shift":
             return MeanShiftClusterer(kwargs)
         if name == "optics":
             return OpticsClusterer(kwargs)
         if name == "hierarchical":
             raise ValueError("Not implemented yet!")
+        if name == "cuml_dbscan":
+            return CUMLDBSCAN(kwargs)
+        # if name == "cuml_kmeans":
+        #     return CUMLKmeans
+        if name == "cuml_hdbscan":
+            return CUMLHDBSCAN(kwargs)
+        if name == "cuml_agglomerative_clustering":
+            return CUMLAgglomerativeClustering(kwargs)
+        else:
+            return NameError(f"Clusterer {name} not implemented yet!")
+
     # def apply_clustering(self, embeddings):
     #     """
     #
@@ -876,10 +896,26 @@ class DBSCANClusterer(ABC):
         self.clusterer = sklearn.cluster.DBSCAN(**config_dict)
 
     def apply_clustering(self, embeddings):
-        clustering = self.clusterer.fit(embeddings)
+        if embeddings.shape[0] > self.clusterer.min_samples:
+            clustering = self.clusterer.fit(embeddings)
+            # print(f"Clustering took: {time.time() - start} seconds!")
+            return clustering.labels_
+        else:
+            # print(f"Clustering took: {time.time() - start} seconds!")
+            return np.zeros(embeddings.shape[0])
 
-        return clustering.labels_
+class HDBSCANClusterer(ABC):
+    def __init__(self, config_dict):
+        self.clusterer = hdbscan.HDBSCAN(min_cluster_size=2, max_cluster_size=45, allow_single_cluster=True, **config_dict)
 
+    def apply_clustering(self, embeddings):
+        if embeddings.shape[0] > self.clusterer.min_cluster_size:
+            clustering = self.clusterer.fit(embeddings)
+
+            return clustering.labels_
+        else:
+            # print(f"Clustering took: {time.time() - start} seconds!")
+            return np.zeros(embeddings.shape[0])
 
 class MeanShiftClusterer(ABC):
     def __init__(self, config_dict):
@@ -896,9 +932,14 @@ class OpticsClusterer(ABC):
         self.clusterer = sklearn.cluster.OPTICS(**config_dict)
 
     def apply_clustering(self, embeddings):
-        clustering = self.clusterer.fit(embeddings)
-
-        return clustering.labels_
+        # start = time.time()
+        if embeddings.shape[0] > self.clusterer.min_samples:
+            clustering = self.clusterer.fit(embeddings)
+            # print(f"Clustering took: {time.time() - start} seconds!")
+            return clustering.labels_
+        else:
+            # print(f"Clustering took: {time.time() - start} seconds!")
+            return np.zeros(embeddings.shape[0])
 
 class IdentityClusterer(BaseClusterer):
     def __init__(self):
@@ -907,6 +948,44 @@ class IdentityClusterer(BaseClusterer):
     def apply_clustering(self, embeddings):
         return np.zeros(embeddings.shape[0])
 
+class CUMLDBSCAN(BaseClusterer):
+    def __init__(self, config_dict):
+        self.clusterer = cuml.DBSCAN(**config_dict)
+
+    def apply_clustering(self, embeddings):
+        if embeddings.shape[0] > self.clusterer.min_samples:
+            clustering = self.clusterer.fit(embeddings)
+            # print(f"Clustering took: {time.time() - start} seconds!")
+            return clustering.labels_
+        else:
+            # print(f"Clustering took: {time.time() - start} seconds!")
+            return np.zeros(embeddings.shape[0])
+
+class CUMLHDBSCAN(BaseClusterer):
+    def __init__(self, config_dict):
+        self.clusterer = cuml.HDBSCAN(**config_dict)
+
+    def apply_clustering(self, embeddings):
+        if embeddings.shape[0] > self.clusterer.min_samples:
+            clustering = self.clusterer.fit(embeddings)
+            # print(f"Clustering took: {time.time() - start} seconds!")
+            return clustering.labels_
+        else:
+            # print(f"Clustering took: {time.time() - start} seconds!")
+            return np.zeros(embeddings.shape[0])
+
+class CUMLAgglomerativeClustering(BaseClusterer):
+    def __init__(self, config_dict):
+        self.clusterer = cuml.AgglomerativeClustering(**config_dict)
+
+    def apply_clustering(self, embeddings):
+        if embeddings.shape[0] > self.clusterer.min_samples:
+            clustering = self.clusterer.fit(embeddings)
+            # print(f"Clustering took: {time.time() - start} seconds!")
+            return clustering.labels_
+        else:
+            # print(f"Clustering took: {time.time() - start} seconds!")
+            return np.zeros(embeddings.shape[0])
 
 class Visualizer():
     def __init__(self):

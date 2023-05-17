@@ -932,10 +932,10 @@ class Panoptic_spherical_contrastive_means_loss(nn.Module):
 
         # batch_cat_id_embeds = {} #outputs.view(outputs.shape[0], outputs.shape[1], -1)
 
-        num_categories = len(embedding_handler.cls_mean_embeddings.keys())
+        num_categories = len(embedding_handler.embedding_storage.cls_mean_embeddings.keys())
         if len(self.abs_radius_err_class_dict) != num_categories + 1 or len(self.radius_loss_item_class_dict) != num_categories + 1 \
                 or len(self.similarity_loss_item_class_dict) != num_categories + 1 or len(self.ct_loss_item_class_dict) != num_categories + 1:
-            for cat_id in embedding_handler.cls_mean_embeddings.keys():
+            for cat_id in embedding_handler.embedding_storage.cls_mean_embeddings.keys():
                 self.abs_radius_err_class_dict[cat_id] = np.zeros(self.bin_elems)
                 self.radius_loss_item_class_dict[cat_id] = 0
                 self.similarity_loss_item_class_dict[cat_id] = 0
@@ -987,6 +987,8 @@ class Panoptic_spherical_contrastive_means_loss(nn.Module):
                 query_embeddings = outputs_cat_id_embeddings
 
                 pos_embeddings = embedding_storage.cls_mean_embeddings[unique_cat_id].repeat(query_embeddings.shape[1], 1).T
+
+                # test = pos_embeddings.detach().cpu().numpy()
 
                 neg_embeddings = torch.stack([embedding_storage.cls_mean_embeddings[tmp_cat_id] for tmp_cat_id in embedding_storage.cls_mean_embeddings.keys() if tmp_cat_id != unique_cat_id], dim=1)
                 # query_indx_mix = torch.randperm(pos_embeddings.shape[1])
@@ -1417,15 +1419,20 @@ class Panoptic_spherical_contrastive_all_embeds_loss(nn.Module):
                     # gather embeddings and calculate cosineembeddingloss with itself
 
                     for unique_segment_id in unique_segment_ids:
+                        unique_segment_id = int(unique_segment_id.item())
                         segment_id_embeddings = outputs[b, :,
                                                 masks_reordered_tmp[0, b, :, :] == unique_segment_id]
-                        segment_id_embeddings_dict[unique_segment_id.item()] = segment_id_embeddings
 
-                        segment_id_embeddings = torch.div(segment_id_embeddings,
-                                                          torch.norm(segment_id_embeddings, 2,
-                                                                     dim=0) + 0.000001)
+                        # segment_id_embeddings = torch.div(segment_id_embeddings,
+                        #                                   torch.norm(segment_id_embeddings, 2,
+                        #                                              dim=0) + 0.000001)
+                        segment_id_embeddings = nn.functional.normalize(segment_id_embeddings, p=2, dim=0)
+
+                        segment_id_embeddings_dict[unique_segment_id] = segment_id_embeddings
+
                         dot_product_embeddings = torch.matmul(torch.transpose(segment_id_embeddings, 0, 1),
                                                               segment_id_embeddings)
+
 
                         dot_product_embeddings = torch.triu(dot_product_embeddings)
                         # test = dot_product_embeddings.nonzero(as_tuple=True)
@@ -1451,20 +1458,22 @@ class Panoptic_spherical_contrastive_all_embeds_loss(nn.Module):
                             curr_embedding = segment_id_embeddings_dict[unique_segment_id.item()]
                             neg_embedding = segment_id_embeddings_dict[neg_unique_segment_id.item()]
 
-                            curr_embedding = torch.div(curr_embedding,
-                                                       torch.norm(curr_embedding, 2, dim=0) + 0.000001)
-                            neg_embedding = torch.div(neg_embedding,
-                                                      torch.norm(neg_embedding, 2, dim=0) + 0.000001)
+                            # curr_embedding = torch.div(curr_embedding,
+                            #                            torch.norm(curr_embedding, 2, dim=0) + 0.000001)
+                            # neg_embedding = torch.div(neg_embedding,
+                            #                           torch.norm(neg_embedding, 2, dim=0) + 0.000001)
 
                             dot_product_embeddings = torch.matmul(torch.transpose(curr_embedding, 0, 1),
                                                                   neg_embedding)
+                            if dot_product_embeddings.shape[0] > dot_product_embeddings.shape[1]:
+                                dot_product_embeddings = dot_product_embeddings.T
 
                             dot_product_embeddings = torch.triu(dot_product_embeddings)
                             # test = dot_product_embeddings.nonzero(as_tuple=True)
                             dot_product_embeddings = dot_product_embeddings[
                                 dot_product_embeddings.nonzero(as_tuple=True)]
-                            dot_product_embeddings = torch.add(dot_product_embeddings,
-                                                               -self.cosine_emb_loss_margin)
+                            dot_product_embeddings = torch.sub(dot_product_embeddings,
+                                                               self.cosine_emb_loss_margin)
                             dot_product_embeddings = torch.clamp(dot_product_embeddings, min=0)
                             dot_product_embeddings_mean = torch.mean(dot_product_embeddings)
 
@@ -2245,7 +2254,7 @@ class Hierarchical_cluster_mean_contrast_loss(nn.Module):
                 self.radius_loss_item_class_dict) != num_categories + 1 \
                 or len(self.similarity_loss_item_class_dict) != num_categories + 1 or len(
             self.ct_loss_item_class_dict) != num_categories + 1:
-            for cat_id in embedding_handler.cls_mean_embeddings.keys():
+            for cat_id in embedding_handler.embedding_storage.cls_mean_embeddings.keys():
                 self.abs_radius_err_class_dict[cat_id] = np.zeros(self.bin_elems)
                 self.radius_loss_item_class_dict[cat_id] = 0
                 self.similarity_loss_item_class_dict[cat_id] = 0
@@ -2563,7 +2572,7 @@ class Hierarchical_cluster_all_embeds_contrast_loss(nn.Module):
                 self.radius_loss_item_class_dict) != num_categories + 1 \
                 or len(self.similarity_loss_item_class_dict) != num_categories + 1 or len(
             self.ct_loss_item_class_dict) != num_categories + 1:
-            for cat_id in embedding_handler.cls_mean_embeddings.keys():
+            for cat_id in embedding_handler.embedding_storage.cls_mean_embeddings.keys():
                 self.abs_radius_err_class_dict[cat_id] = np.zeros(self.bin_elems)
                 self.radius_loss_item_class_dict[cat_id] = 0
                 self.similarity_loss_item_class_dict[cat_id] = 0
