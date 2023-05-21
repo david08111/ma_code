@@ -8,3 +8,4 @@ from .builder import *
 from .logger import *
 from .sampler import *
 from .comp_graph_vis import *
+from .visualization_panopticapi import *

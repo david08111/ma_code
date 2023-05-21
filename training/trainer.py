@@ -149,10 +149,15 @@ class Net_trainer():
         torch.save(check_pt, os.path.join(self.save_path, net.model_architecture_name + "_chkpt_" + str(epoch) + ".pth"))
 
     def save_model(self, net, best=False):
+        state_dict = {
+            "model": net.model.state_dict(),
+            "embedding_handler": self.embedding_handler.state_dict()
+        }
+
         if best:
-            torch.save(net.model.state_dict(), os.path.join(self.save_path, net.model_architecture_name + "_chkpt_best.pth"))
+            torch.save(state_dict, os.path.join(self.save_path, net.model_architecture_name + "_chkpt_best.pth"))
         else:
-            torch.save(net.model.state_dict(), os.path.join(self.save_path, net.model_architecture_name + ".pth"))
+            torch.save(state_dict, os.path.join(self.save_path, net.model_architecture_name + ".pth"))
 
     def load_checkpoint(self, net, path):
         loaded_check_pt = torch.load(path)
@@ -501,7 +506,7 @@ class Net_trainer():
         # # # # remove !
         # ######
         # self.start_epoch -= 1
-        # self.start_epoch = 10
+        # self.start_epoch = 160
         # #########
         for epoch in range(self.start_epoch, self.max_epoch + 1):
             # time_start = time.time()

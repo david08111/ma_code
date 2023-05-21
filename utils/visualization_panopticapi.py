@@ -22,24 +22,28 @@ from skimage.morphology import dilation
 from skimage.segmentation import find_boundaries
 
 
-def visualize(json_file, segmentations_folder, img_folder):
-    # whether from the PNG are used or new colors are generated
+# def visualize(json_file, segmentations_folder, img_folder):
+#     # whether from the PNG are used or new colors are generated
+#     generate_new_colors = True
+#
+#     # json_file = './sample_data/panoptic_examples.json'
+#     # segmentations_folder = './sample_data/panoptic_examples/'
+#     # img_folder = './sample_data/input_images/'
+#     # panoptic_coco_categories = './panoptic_coco_categories.json'
+#     # panoptic_coco_categories = json_file["categories"]
+#     coco_d = None
+#
+#     with open(json_file, 'r') as f:
+#         coco_d = json.load(f)
+
+def visualize(coco_annotations_dict, segmentations_folder, img_folder):
     generate_new_colors = True
-
-    # json_file = './sample_data/panoptic_examples.json'
-    # segmentations_folder = './sample_data/panoptic_examples/'
-    # img_folder = './sample_data/input_images/'
-    # panoptic_coco_categories = './panoptic_coco_categories.json'
-    # panoptic_coco_categories = json_file["categories"]
-    coco_d = None
-
-    with open(json_file, 'r') as f:
-        coco_d = json.load(f)
-
     # ann = np.random.choice(coco_d['annotations'])
     # ann = coco_d['annotations'][0]
     # with open(panoptic_coco_categories, 'r') as f:
     #     categories_list = json.load(f)
+
+    coco_d = coco_annotations_dict
     categories_list = coco_d["categories"]
     categegories = {category['id']: category for category in categories_list}
 
@@ -167,4 +171,10 @@ if __name__ == "__main__":
     json_file_path = "/work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/gtFine_val.json"
     segmentations_folder_path = "/work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/val"
     imgs_folder_path = "/work/scratch/dziuba/datasets/Cityscapes/leftImg8bit/val"
-    visualize(json_file_path, segmentations_folder_path, imgs_folder_path)
+
+    coco_d = None
+
+    with open(json_file_path, 'r') as f:
+        coco_d = json.load(f)
+
+    visualize(coco_d, segmentations_folder_path, imgs_folder_path)

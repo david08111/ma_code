@@ -1,55 +1,94 @@
-import argparse
 import torch
-from torch.utils.data import DataLoader
-from utils import Config, load_cam_settings, visualize_3d_bboxes
-from Networks import Model
+import argparse
 import os
-import time
-from tqdm import tqdm
+import sys
+import json
 import cv2
-from shutil import copyfile
 import numpy as np
+from shutil import copyfile
 from matplotlib import pyplot as plt
-from data_handling import DataHandler, Bbox3D_DataLoader, custom_collate_fn_2
-from utils import Evaluation_Logger
+from tqdm import tqdm
+from utils import Config, create_config_dict, update_config_dict, visualization_panopticapi
+from data_handling import DataHandler, DataHandlerPlainImages, custom_collate_fn, custom_collate_fn2, custom_collate_plain_images
+from training import Metrics_Wrapper, EmbeddingHandler, EmbeddingHandlerDummy, Loss_Wrapper, Net_trainer
+from models import Model
+from torch.utils.data import DataLoader
 
 
 
-def predict(visualize, in_path, out_path, weight_file, config_file, copy):
+def predict(visualize, in_path, out_path, weight_file, config_path, copy):
+    ##########
+    torch.manual_seed(10)
+    torch.backends.cudnn.benchmark = True
+    # torch.cuda.memory.change_current_allocator(rmm.rmm_torch_allocator)
+    ############
 
-    config = Config()
-    config_dict = config(os.path.abspath(config_file))
 
-    cam_config = load_cam_settings(config_dict["data"]["camera_config"])
+    config_dict = create_config_dict(os.path.abspath(config_path))
 
-    net = Model(config_dict["network"]["architecture"], config_dict["network"]["in_channels"], config_dict["network"]["classes"], config_dict["data"]["img_size"], config_dict["network"]["architecture_config"])
+    use_cpp = config_dict["training"]["use_cpp"]
+    use_amp = config_dict["training"]["AMP"]
 
-    net.eval()
+    if use_cpp:
+        amp_device = "cpu"
+    else:
+        amp_device = "cuda"
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    model = Model(config_dict)
+    # device = torch.device("cpu")
+
+    model.to(device)
+
+    model.eval()
 
     state = torch.load(os.path.abspath(weight_file))
 
-    try:
-        net.model.load_state_dict(state["state_dict"]["model"])
-    except KeyError:
-        try:
-            net.model.load_state_dict(state["model"])
-        except KeyError:
-            net.model.load_state_dict(state)
+    model.model.load_state_dict(state["model"])
 
-    use_cuda = torch.cuda.is_available()
-    device = torch.device("cuda" if use_cuda else "cpu")
+    dataset_segment_info = None
 
-    net.to(device)
+    dataset_split_dict_path = config_dict["data"]["datasets_split"]["train_set"]["sets"]
+    set_name = list(dataset_split_dict_path.keys())[0]
+    dataset_segment_info_path = dataset_split_dict_path[set_name]["segment_info_file_path"]
+
+    with open(dataset_segment_info_path, 'r') as f:
+        dataset_segment_info = json.load(f)
+
+    dataset_category_dict = dataset_segment_info["categories"]
+    dataset_category_id_dict = {el['id']: el for el in dataset_category_dict}
+
+    embedding_handler_config = config_dict["training"]["embedding_handler"]
+    embedding_handler = EmbeddingHandler(embedding_handler_config["embedding_storage"],
+                                         embedding_handler_config["embedding_sampler"],
+                                         embedding_handler_config["storage_step_update_sample_size"],
+                                         dataset_category_id_dict,
+                                         model.model_architecture_embedding_dims, device)
+    embedding_handler.load_state_dict(state["embedding_handler"])
+
+
+
 
     data = {
+        # "pred_loader": DataLoader(
+        #     dataset=DataHandlerPlainImages(in_path, config_dict["data"]["img_height"], config_dict["data"]["img_width"],
+        #                                    config_dict["model"]["channels"], \
+        #                                    device, config_dict["data"]["num_workers"]),
+        #     batch_size=1, shuffle=False, num_workers=config_dict["data"]["num_workers"], drop_last=False,
+        #     pin_memory=True)
         "pred_loader": DataLoader(
-            dataset=DataHandler(in_path, config_dict["data"]["img_size"],
-                                config_dict["data"]["img_size"], config_dict["network"]["in_channels"], device,
-                                rotation=0, translation=0, scaling=0, hor_flip=False, ver_flip=False, config_data=config_dict["data"]),
+            dataset=DataHandlerPlainImages(in_path, config_dict["data"]["img_height"], config_dict["data"]["img_width"], config_dict["model"]["channels"], \
+                                           device, config_dict["data"]["num_workers"]),
             batch_size=1, shuffle=False, num_workers=config_dict["data"]["num_workers"], drop_last=False,
-            pin_memory=True, collate_fn=custom_collate_fn_2)
+            pin_memory=True, collate_fn=custom_collate_plain_images)
     }
 
+    output_annotations = {
+        "images": [],
+        "annotations": [],
+        "categories": dataset_category_dict
+    }
 
     with torch.no_grad():
 
@@ -64,58 +103,57 @@ def predict(visualize, in_path, out_path, weight_file, config_file, copy):
         os.makedirs(pred_path, exist_ok=True)
 
 
-        for batch_id, datam in enumerate(tqdm(data["pred_loader"], desc="Predict")):
-            [inputs, labels, input_file_name, label_file_name, crop_pos_list, cam_extr_list, img_list_full] = datam
+        for batch_id, datam in enumerate(tqdm(data["pred_loader"], desc="Prediction",  file=sys.stdout)):
+            [inputs, file_paths] = datam
+
+            file_name = os.path.basename(file_paths[0])
+            fname = file_name.rsplit(".", 1)[0]
 
             inputs = inputs.to(device, non_blocking=True)
-            labels = labels.to(device, non_blocking=True)
-            # labels = labels.narrow(3, 0, 1).contiguous()
-            inputs = inputs.permute((0, 3, 2, 1))
 
-            outputs = net.model(inputs)
-
-            outputs = net.create_final_outputs(outputs, cam_config["fx"], inputs.shape[2])
 
             # inputs = inputs.permute((0, 3, 2, 1))
 
-            fname = input_file_name[0].rsplit(".", 1)[0]
+            with torch.autocast(device_type=amp_device, enabled=use_amp):
+                outputs, output_items = model(inputs)
 
+            annotations_data = [{"image_id": fname}]
+
+            final_outputs, final_output_segmentation_data = model.create_output_from_embeddings(outputs, [dataset_category_id_dict], annotations_data,
+                                                                                              embedding_handler=embedding_handler)
+
+            final_output_segmentation_data[0]["file_name"] = fname + "_instanceIds.png"
+            output_annotations["images"].append({
+                "id": final_output_segmentation_data[0]["image_id"],
+                "width": final_outputs.shape[2],
+                "height": final_outputs.shape[3],
+                "file_name": file_name
+            })
+            output_annotations["annotations"].append(final_output_segmentation_data[0])
             # test = inputs.cpu().detach().numpy()
             # plt.imshow(test[0])
             # plt.show()
 
-            inputs = inputs.cpu().detach().numpy()
-            outputs = outputs.cpu().detach().numpy()
-            # crop_resize_factor = crop_resize_factor.cpu().detach().numpy()
-            labels = labels.cpu().detach().numpy()
-            labels = labels[:, 1:]
+            # inputs = inputs.cpu().detach().numpy()
+            final_outputs = final_outputs.cpu().detach().numpy()
+            # plt.imshow(final_outputs[0])
+            # plt.show()
 
-
-            if visualize:
-                # vis_img = np.maximum(inputs.cpu().numpy(), labels.cpu().numpy())
-                # vis_img[vis_img == vis_img] = 128
-                # vis_img = np.maximum(vis_img, outputs.numpy())
-                # cv2.imwrite(os.path.join(vis_path, input_file_name), vis_img)
-
-                # inputs = inputs.cpu().numpy()[0, :, :, :] * 255
-                # inputs = inputs.astype(np.uint8)
-
-                # outputs = np.concatenate([outputs[0, :, :, :], outputs[0, :, :, :], outputs[0, :, :, :]], axis=2)
-                # outputs = outputs.astype(np.uint8)
-
-                visualized_img = visualize_3d_bboxes(inputs, outputs, labels, crop_pos_list, cam_config, cam_extr_list, img_list_full)
-                visualized_img *= 255
-                # overlayed_img = np.array(overlayed_img, dtype=np.uint8)
-                cv2.imwrite(os.path.join(vis_path, input_file_name[0]), cv2.cvtColor(visualized_img[0], cv2.COLOR_RGB2BGR))
+            save_path = os.path.join(out_path, "pred", final_output_segmentation_data[0]["file_name"])
+            # cv2.imwrite(save_path, final_outputs[0])
+            final_outputs = np.moveaxis(final_outputs[0], 0, 2)
+            # final_outputs = np.moveaxis(final_outputs, 0, 1)
+            # final_outputs = final_outputs[0]
+            cv2.imwrite(save_path, cv2.cvtColor(final_outputs, cv2.COLOR_RGB2BGR))
+            # cv2.imwrite(save_path, final_outputs)
             if copy:
-                copyfile(os.path.join(in_path, input_file_name[0]), os.path.join(pred_path, input_file_name[0]))
-                copyfile(os.path.join(in_path, label_file_name[0]), os.path.join(pred_path, label_file_name[0]))
-                # cv2.imwrite(os.path.join(pred_path, input_file_name[0]), inputs[0])
-                # cv2.imwrite(os.path.join(pred_path, label_file_name[0]), labels)
+                copyfile(os.path.join(in_path, file_name), os.path.join(pred_path, file_name))
 
-            Bbox3D_DataLoader.save_bbox(os.path.join(pred_path, input_file_name[0] + "_pred" + "." + "json"), outputs, cam_config)
+    if visualize:
+        visualization_panopticapi(output_annotations, pred_path, pred_path)
 
-
+    with open(os.path.join(out_path, "annotations_data.json"), 'w') as f:
+        json.dump(output_annotations, f)
 
 if __name__ == "__main__":
 

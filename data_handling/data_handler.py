@@ -21,6 +21,69 @@ import itertools
 
 import ctypes
 
+class DataHandlerPlainImages(torch.utils.data.Dataset):
+    def __init__(self, image_path, img_height, img_width, channels, device, num_workers, load_ram=False):
+        self.image_path = image_path
+        self.img_height = img_height
+        self.img_width = img_width
+        self.channels = channels
+        self.load_ram = load_ram
+        self.device = device
+        self.num_workers = num_workers
+
+        self.dataset_file_list = [os.path.join(image_path, file) for file in os.listdir(image_path) if os.path.isfile(os.path.join(image_path, file))]
+
+        if self.load_ram:
+            img_loaded_block = multiprocessing.RawArray(ctypes.c_uint8, len(self) * self.img_height * self.img_width * self.channels)
+            annotation_mask_loaded_block = multiprocessing.RawArray(ctypes.c_float, len(self) * self.img_height * self.img_width * self.channels)
+
+            array_shape = (len(self), self.img_height, self.img_width, self.channels)
+            print("Loading Dataset into the RAM...")
+            multi_proc_proc_chunk_size = 15
+            indx_partition_list = list(partition(range(len(self)), multi_proc_proc_chunk_size))
+
+            with multiprocessing.Pool(max(self.num_workers, 1), initializer=init_worker_img_only, initargs=(self, img_loaded_block, array_shape)) as pool:
+                with tqdm(total=len(indx_partition_list)) as pbar:
+                    for result in pool.imap_unordered(load_ram_item3, indx_partition_list):
+
+                        pbar.update()
+
+            self.img_loaded_block = tonumpyarray(img_loaded_block, shape=(len(self), self.img_height, self.img_width, self.channels), dtype=np.uint8)
+
+            mem_size = (self.img_loaded_block.nbytes) / 1000000000
+            print("Dataset loading finished!")
+            print(f"Dataset Mem Size: {mem_size} GB")
+
+    def __len__(self):
+        return len(self.dataset_file_list)
+
+    def __getitem__(self, idx):
+
+        if self.load_ram:
+            img = self.img_loaded_block[idx]
+            file_path = self.dataset_file_list[idx]
+
+            max_type_value = np.iinfo(img.dtype).max
+
+            img = img.astype(np.float32)
+
+            img /= max_type_value  # normalization to uint8
+
+            return img, file_path
+        else:
+
+            file_path = self.dataset_file_list[idx]
+            img = Img_DataLoader.load_image(file_path, self.img_width, self.img_height)
+
+            max_type_value = np.iinfo(img.dtype).max
+
+            img = img.astype(np.float32)
+
+            img /= max_type_value  # normalization to uint8
+
+            return img, file_path
+
+
 class DataHandler(torch.utils.data.Dataset):
     def __init__(self, dataset_config_set, general_config, device, *args, **kwargs):
         """ Data Handler class
@@ -285,6 +348,16 @@ def init_worker3(cls_obj, img_loaded_block, annotation_mask_loaded_block, shape)
 
     # shared_img_loaded_block = img_loaded_block
     # shared_annotation_mask_loaded_block = annotation_mask_loaded_block
+
+def init_worker_img_only(cls_obj, img_loaded_block, shape):
+    global shared_cls_obj, shared_img_loaded_block
+    # store argument in the global variable for this process
+    shared_cls_obj = cls_obj
+
+    shared_img_loaded_block = tonumpyarray(img_loaded_block,
+                                         shape=shape,
+                                         dtype=np.uint8)
+
 
 def init_worker2(img_loaded_block, annotation_mask_loaded_block):
     global shared_img_loaded_block, shared_annotation_mask_loaded_block

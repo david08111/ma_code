@@ -6,7 +6,7 @@ model:
     model_architecture_origin: segmentation_models_pytorch
     model_architecture_name: unet_inceptionresnetv2
     pretrained: True
-    embedding_dims: 150
+    embedding_dims: 50
   channels: 3
   output_creation:  # first list element will be used to create the panoptic output prediction
 #    - multi_sphere_association:
@@ -21,7 +21,9 @@ model:
 #
     - nearest_class_mean_association:
         instance_clustering_method:
-          identity: { } # no args specified
+#          identity: { } # no args specified
+          cuml_hdbscan:
+            min_samples: 4
 #     - multi_sphere_association_flexible:
 #        radius: 1
 #        radius_association_margin: 0.5  # max deviation from radius to still associate to closest radius
@@ -50,7 +52,7 @@ scheduler:
     cooldown: 20
 
 training:
-  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/hierarchical_batch_contrast"
+  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/hierarchical_batch_contrast_panoptic"
 #  gpu_ids: [0]
   save_freq: 10
   metrics_calc_freq: 10
@@ -59,6 +61,7 @@ training:
   AMP: False
   compile: False
   best_eval_mode: "min"
+  cuml_mem_alloc: 2000 # in MB
   embedding_handler:
     storage_step_update_sample_size: 1     #per class base
     embedding_storage:
@@ -69,44 +72,64 @@ training:
 
 loss:
   train_loss:
-    hierarchical_cluster_batch_contrast:
+    hierarchical_cluster_batch_contrast_panoptic:
       inter_cls_contrastive_loss:
         mse_hinged_pos:
-          margin: 3
+          margin: 45
           norm: 2
 #          inner_loss:
 #            mse:
 #              reduction: None
       intra_cls_contrastive_loss:
         mse_hinged_neg:
-          margin: 0.5
+          margin: 15
           norm: 2
 #          inner_loss:
 #            mse:
 #              reduction: None
+      inter_inst_contrastive_loss:
+        mse_hinged_pos:
+          margin: 3
+          norm: 2
+      intra_inst_contrastive_loss:
+        mse_hinged_neg:
+          margin: 0.5
+          norm: 2
       reg_loss_norm: 2
       inter_cls_contrastive_loss_weight: 1
       intra_cls_contrastive_loss_weight: 1
+      inter_inst_contrastive_loss_weight: 1
+      intra_inst_contrastive_loss_weight: 1
       regularization_weight: 0.001
   val_loss:
-    hierarchical_cluster_batch_contrast:
+    hierarchical_cluster_batch_contrast_panoptic:
       inter_cls_contrastive_loss:
         mse_hinged_pos:
-          margin: 3
+          margin: 45
           norm: 2
       #          inner_loss:
       #            mse:
       #              reduction: None
       intra_cls_contrastive_loss:
         mse_hinged_neg:
-          margin: 0.5
+          margin: 15
           norm: 2
       #          inner_loss:
       #            mse:
       #              reduction: None
+      inter_inst_contrastive_loss:
+        mse_hinged_pos:
+          margin: 3
+          norm: 2
+      intra_inst_contrastive_loss:
+        mse_hinged_neg:
+          margin: 0.5
+          norm: 2
       reg_loss_norm: 2
       inter_cls_contrastive_loss_weight: 1
       intra_cls_contrastive_loss_weight: 1
+      inter_inst_contrastive_loss_weight: 1
+      intra_inst_contrastive_loss_weight: 1
       regularization_weight: 0.001
   metrics:
     - panoptic_quality:
@@ -116,18 +139,18 @@ loss:
 
 
 data:
-  datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref.yaml"
+  datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref_debug_bigger.yaml"
   batch_size: 4
   num_workers: 4
   prefetch_factor: 4 # currently deprecated
-  img_width: 512
-  img_height: 256
+  img_width: 256
+  img_height: 128
   load_ram: False # loads data fully into the main memory
   augmentations_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/augmentations_base.yaml"
 
 logging:
   name: "LOG"
-  save_path: "/work/scratch/dziuba/ma_code_runs/logs/hierarchical_batch_contrast"
+  save_path: "/work/scratch/dziuba/ma_code_runs/logs/hierarchical_batch_contrast_panoptic"
   num_log_img: 5
   log_graph: False
   wandb_config:

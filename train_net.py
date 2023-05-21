@@ -33,15 +33,15 @@ def train_net(config_path, verbose):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # device = torch.device("cuda" if not config_dict["training"]["use_cpp"] else "cpu")
 
-    rmm.reinitialize(pool_allocator=True,
-                     initial_pool_size=2e9,
-                     maximum_pool_size=2e9)
+    # rmm.reinitialize(pool_allocator=True,
+    #                  initial_pool_size=config_dict["training"]["cuml_mem_alloc"],
+    #                  maximum_pool_size=2e9)
     # mr = rmm.mr.get_current_device_resource()
     # stats_pool_memory_resource = rmm.mr.StatisticsResourceAdaptor(mr)
     # rmm.mr.set_current_device_resource(stats_pool_memory_resource)
 
     torch.manual_seed(10)
-    # torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.benchmark = True
     # torch.cuda.memory.change_current_allocator(rmm.rmm_torch_allocator)
 
 

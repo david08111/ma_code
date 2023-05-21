@@ -2,7 +2,6 @@ import argparse
 import torch
 from torch.utils.data import DataLoader
 from utils import Config
-from Networks import Model
 import os
 import time
 from tqdm import tqdm

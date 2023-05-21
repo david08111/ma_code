@@ -416,3 +416,24 @@ def custom_collate_fn2(batch_list):
 
 
     return [torch.from_numpy(img_data), torch.from_numpy(mask_data), annotations_data]
+
+def custom_collate_plain_images(batch_list):
+    """
+        Combines data from sampled batch to return as torch dataloader batch output
+    Args:
+        batch_list:
+
+    Returns:
+        List with image data as nd array, bbox data as nd array, image file name, bbox file name
+    """
+
+    img_data = np.stack([batch_list[i][0] for i in range(len(batch_list))], axis=0)
+
+    img_data = np.moveaxis(img_data, 3, 1)
+
+    img_data = img_data.astype(np.float32)
+
+    file_path_list = [batch_list[i][1] for i in range(len(batch_list))]
+
+
+    return [torch.from_numpy(img_data), file_path_list]
