@@ -12,6 +12,7 @@ from __future__ import unicode_literals
 import os, sys
 import numpy as np
 import json
+import cv2
 
 import PIL.Image as Image
 import matplotlib.pyplot as plt
@@ -36,8 +37,10 @@ from skimage.segmentation import find_boundaries
 #     with open(json_file, 'r') as f:
 #         coco_d = json.load(f)
 
-def visualize(coco_annotations_dict, segmentations_folder, img_folder):
+def create_visualization_panopticapi(coco_annotations_dict, segmentations_folder, img_folder):
     generate_new_colors = True
+
+    out_dict = {}
     # ann = np.random.choice(coco_d['annotations'])
     # ann = coco_d['annotations'][0]
     # with open(panoptic_coco_categories, 'r') as f:
@@ -76,6 +79,9 @@ def visualize(coco_annotations_dict, segmentations_folder, img_folder):
             Image.open(os.path.join(segmentations_folder, ann['file_name'])),
             dtype=np.uint8
         )
+        if segmentation.shape != img.shape:
+            img = cv2.resize(img, (segmentation.shape[1], segmentation.shape[0]))
+
         segmentation_id = rgb2id(segmentation)
         segmentation_id_list = np.unique(segmentation_id).tolist()
         # find segments boundaries
@@ -108,7 +114,8 @@ def visualize(coco_annotations_dict, segmentations_folder, img_folder):
         boundaries_segment_id = boundaries_segment_id.astype(np.uint8) * 255
 
         boundaries = boundaries_segment_id
-        contours = dilation(boundaries)
+        # contours = dilation(boundaries)
+        contours = boundaries
         ####
         # boundaries = find_boundaries(segmentation_mask_unique, mode='outer', background=0).astype(np.uint8) * 255
         # contours = find_boundaries(segmentation_id, mode='outer', background=0).astype(np.uint8) * 255
@@ -160,12 +167,17 @@ def visualize(coco_annotations_dict, segmentations_folder, img_folder):
         #     plt.imshow(segmentation)
         #     plt.axis('off')
         #     plt.tight_layout()
-        plt.imshow(contours_img)
-        plt.show()
+        # plt.imshow(contours_img)
+        # plt.show()
+        #
+        # plt.imshow(out)
+        # plt.show()
+        # pass
+        out = np.asarray(out)
+        out = cv2.cvtColor(out, cv2.COLOR_RGBA2BGR)
+        out_dict[image_info["file_name"]] = np.asarray(out)
 
-        plt.imshow(out)
-        plt.show()
-        pass
+    return out_dict
 
 if __name__ == "__main__":
     json_file_path = "/work/scratch/dziuba/datasets/Cityscapes_COCO/gtFine/gtFine_val.json"
@@ -177,4 +189,4 @@ if __name__ == "__main__":
     with open(json_file_path, 'r') as f:
         coco_d = json.load(f)
 
-    visualize(coco_d, segmentations_folder_path, imgs_folder_path)
+    create_visualization_panopticapi(coco_d, segmentations_folder_path, imgs_folder_path)

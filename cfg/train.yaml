@@ -3,9 +3,11 @@ model:
   model_architecture:
 #    model_architecture_origin: torchvision
 #    model_architecture_name: deeplabv3_resnet50
-    model_architecture_origin: segmentation_models_pytorch
-    model_architecture_name: unet_inceptionresnetv2
-    pretrained: True
+#    model_architecture_origin: segmentation_models_pytorch
+#    model_architecture_name: unet_inceptionresnetv2
+    model_architecture_origin: segformer_models
+    model_architecture_name: segformer
+#    pretrained: True
     embedding_dims: 50
   channels: 3
   output_creation:  # first list element will be used to create the panoptic output prediction
@@ -52,11 +54,11 @@ scheduler:
     cooldown: 20
 
 training:
-  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/hierarchical_batch_contrast_panoptic"
+  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/segformer_debug"
 #  gpu_ids: [0]
   save_freq: 10
   metrics_calc_freq: 10
-  num_epochs: 120
+  num_epochs: 150
   use_cpp: False
   AMP: False
   compile: False
@@ -140,17 +142,18 @@ loss:
 
 data:
   datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref_debug_bigger.yaml"
-  batch_size: 4
-  num_workers: 4
+  batch_size: 2
+  num_workers: 2
   prefetch_factor: 4 # currently deprecated
   img_width: 256
-  img_height: 128
+  img_height: 256
   load_ram: False # loads data fully into the main memory
-  augmentations_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/augmentations_base.yaml"
+  load_orig_size: True
+  augmentations_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/augmentations_crop.yaml"
 
 logging:
   name: "LOG"
-  save_path: "/work/scratch/dziuba/ma_code_runs/logs/hierarchical_batch_contrast_panoptic"
+  save_path: "/work/scratch/dziuba/ma_code_runs/logs/segformer_debug"
   num_log_img: 5
   log_graph: False
   wandb_config:

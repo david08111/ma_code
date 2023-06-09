@@ -63,6 +63,7 @@ def calc_cls_pixel_distribution(dataset_config_path, save_path, calc_weights_met
 
     for annotation_instance in tqdm(dataset_config["annotations"]):
         for segment in annotation_instance["segments_info"]:
+            # if segment["area"] > 7:
             categories_stat_data[segment["category_id"]]["area_list"].append(segment["area"])
             # categories_stat_data[segment["category_id"]]["total_area"] += segment["area"]
             #
@@ -169,6 +170,49 @@ def calc_cls_pixel_distribution(dataset_config_path, save_path, calc_weights_met
     print(weight_list)
     print("Related class ID order list:")
     print(id_list)
+
+    with open(os.path.join(save_path, 'statistics.txt'), 'w') as f:
+        f.write("-"*50 + "\n")
+        f.write('Num Appearances:\n')
+        for i in range(len(class_name_list)):
+            f.write(class_name_list[i] + ": " + str(num_appearances_list[i]) + "\n")
+
+        f.write("-" * 50 + "\n")
+        f.write('Total Area:\n')
+        for i in range(len(class_name_list)):
+            f.write(class_name_list[i] + ": " + str(total_area_list[i]) + "\n")
+
+        f.write("-" * 50 + "\n")
+        f.write('Avg Area:\n')
+        for i in range(len(class_name_list)):
+            f.write(class_name_list[i] + ": " + str(avg_area_list[i]) + "\n")
+
+        f.write("-" * 50 + "\n")
+        f.write('Min Area:\n')
+        for i in range(len(class_name_list)):
+            f.write(class_name_list[i] + ": " + str(min_area_list[i]) + "\n")
+
+        f.write("-" * 50 + "\n")
+        f.write('Max Area:\n')
+        for i in range(len(class_name_list)):
+            f.write(class_name_list[i] + ": " + str(max_area_list[i]) + "\n")
+
+        f.write("-" * 50 + "\n")
+        f.write('Median Area:\n')
+        for i in range(len(class_name_list)):
+            f.write(class_name_list[i] + ": " + str(median_area_list[i]) + "\n")
+
+        f.write("-" * 50 + "\n")
+        f.write('Rel Dataset Area:\n')
+        for i in range(len(class_name_list)):
+            f.write(class_name_list[i] + ": " + str(rel_dataset_area_list[i]) + "\n")
+
+        f.write("-" * 50 + "\n")
+        f.write("Calc class weight list:\n")
+        f.write(str(weight_list) + "\n")
+        f.write("-" * 50 + "\n")
+        f.write("Related class ID order list:\n")
+        f.write(str(id_list) + "\n")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

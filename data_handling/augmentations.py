@@ -42,6 +42,10 @@ class Augmentation_Wrapper():
                 transform = albtions.augmentations.Emboss(**config["transformations"][key])
             elif key == "gaussnoise":
                 transform = albtions.augmentations.GaussNoise(**config["transformations"][key])
+            elif key == "randomcontrast":
+                transform = albtions.augmenations.RandomContrast(**config["transformations"][key])
+            elif key == "randombrightness":
+                transform = albtions.augmenations.RandomBrightnessContrast(**config["transformations"][key])
             elif key == "isonoise":
                 transform = albtions.augmentations.ISONoise(**config["transformations"][key])
             elif key == "motionblur":

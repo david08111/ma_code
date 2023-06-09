@@ -8,7 +8,7 @@ import numpy as np
 from shutil import copyfile
 from matplotlib import pyplot as plt
 from tqdm import tqdm
-from utils import Config, create_config_dict, update_config_dict, visualization_panopticapi
+from utils import Config, create_config_dict, update_config_dict, create_visualization_panopticapi
 from data_handling import DataHandler, DataHandlerPlainImages, custom_collate_fn, custom_collate_fn2, custom_collate_plain_images
 from training import Metrics_Wrapper, EmbeddingHandler, EmbeddingHandlerDummy, Loss_Wrapper, Net_trainer
 from models import Model
@@ -108,6 +108,7 @@ def predict(visualize, in_path, out_path, weight_file, config_path, copy):
 
             file_name = os.path.basename(file_paths[0])
             fname = file_name.rsplit(".", 1)[0]
+            fname = fname.rsplit("_leftImg8bit")[0]
 
             inputs = inputs.to(device, non_blocking=True)
 
@@ -150,7 +151,11 @@ def predict(visualize, in_path, out_path, weight_file, config_path, copy):
                 copyfile(os.path.join(in_path, file_name), os.path.join(pred_path, file_name))
 
     if visualize:
-        visualization_panopticapi(output_annotations, pred_path, pred_path)
+        vis_imgs_dict = create_visualization_panopticapi(output_annotations, pred_path, in_path)
+
+        for vis_file_name in vis_imgs_dict.keys():
+            cv2.imwrite(os.path.join(vis_path, vis_file_name), cv2.cvtColor(vis_imgs_dict[vis_file_name], cv2.COLOR_RGB2BGR))
+
 
     with open(os.path.join(out_path, "annotations_data.json"), 'w') as f:
         json.dump(output_annotations, f)

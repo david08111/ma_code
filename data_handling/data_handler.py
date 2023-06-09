@@ -31,7 +31,12 @@ class DataHandlerPlainImages(torch.utils.data.Dataset):
         self.device = device
         self.num_workers = num_workers
 
-        self.dataset_file_list = [os.path.join(image_path, file) for file in os.listdir(image_path) if os.path.isfile(os.path.join(image_path, file))]
+        # self.dataset_file_list = []
+        # for root, dirs, files in os.walk(image_path):
+        #     for filename in files:
+        #         self.dataset_file_list.append(os.path.join(root, filename))
+        self.dataset_file_list = [os.path.join(root, file) for root, dirs, files in os.walk(image_path) for file in files]
+        # self.dataset_file_list = [os.path.join(image_path, file) for file in os.listdir(image_path) if os.path.isfile(os.path.join(image_path, file))]
 
         if self.load_ram:
             img_loaded_block = multiprocessing.RawArray(ctypes.c_uint8, len(self) * self.img_height * self.img_width * self.channels)
@@ -192,6 +197,14 @@ class DataHandler(torch.utils.data.Dataset):
         augmented_data_item_dict = self.augmenter.apply_augmentation(data_item_dict)
 
         ###
+        if augmented_data_item_dict["img"].shape[0] > self.dataset_general_settings["img_height"] and augmented_data_item_dict["img"].shape[1] > self.dataset_general_settings["img_width"]:
+            augmented_data_item_dict["img"] = cv2.resize(augmented_data_item_dict["img"], (self.dataset_general_settings["img_width"], self.dataset_general_settings["img_height"]))
+
+        if augmented_data_item_dict["annotation_mask"].shape[0] > self.dataset_general_settings["img_height"] and augmented_data_item_dict["annotation_mask"].shape[1] > self.dataset_general_settings["img_width"]:
+            augmented_data_item_dict["annotation_mask"] = cv2.resize(augmented_data_item_dict["annotation_mask"], (
+            self.dataset_general_settings["img_width"], self.dataset_general_settings["img_height"]),
+                                                         interpolation=cv2.INTER_NEAREST)
+
         max_type_value = np.iinfo(augmented_data_item_dict["img"].dtype).max
 
         augmented_data_item_dict["img"] = augmented_data_item_dict["img"].astype(np.float32)
@@ -228,7 +241,7 @@ class Base_Dataset_COCO(ABC):
     #     self.img_width = img_width
     #     self.img_height = img_height
 
-    def __init__(self, dataset_name, dataset_type, img_data_path, segment_info_file_path, segment_masks_path, img_width, img_height, load_ram, num_workers=4, channels=3, *args, **kwargs):
+    def __init__(self, dataset_name, dataset_type, img_data_path, segment_info_file_path, segment_masks_path, img_width, img_height, load_ram, load_orig_size=True, num_workers=4, channels=3, *args, **kwargs):
         self.dataset_format = "COCO"
         self.dataset_name = dataset_name
         self.dataset_type = dataset_type
@@ -460,7 +473,7 @@ def load_ram_item3(indx_list):
 
         shared_img_loaded_block[i] = Img_DataLoader.load_image(
             os.path.join(shared_cls_obj.img_data_path, img_city_name_dir, shared_cls_obj.images_meta_data[i]["file_name"]),
-            shared_cls_obj.img_width, shared_cls_obj.img_height)
+            shared_cls_obj.load_ram_img_width, shared_cls_obj.load_ram_img_height)
 
         annotation = shared_cls_obj.annotations_data[img_id]
 
@@ -468,8 +481,8 @@ def load_ram_item3(indx_list):
         # if "file_name" not in annotation.keys():
         #     print(annotation)
         shared_annotation_mask_loaded_block[i] = Mask_DataLoader.load_image(
-            os.path.join(shared_cls_obj.segment_masks_path, annotation["file_name"]), shared_cls_obj.img_width,
-            shared_cls_obj.img_height,
+            os.path.join(shared_cls_obj.segment_masks_path, annotation["file_name"]), shared_cls_obj.load_ram_img_width,
+            shared_cls_obj.load_ram_img_height,
             shared_cls_obj.segment_info["annotations"][i], shared_cls_obj.categories_id)
 
     # return (shared_img_loaded_block, shared_annotation_mask_loaded_block)
@@ -479,9 +492,19 @@ def partition(lst, size):
         yield list(itertools.islice(lst, i, i + size))
 
 class Cityscapes_Dataset(Base_Dataset_COCO):
-    def __init__(self, dataset_name, dataset_type, img_data_path, segment_info_file_path, segment_masks_path, img_width, img_height, load_ram=False, num_workers=4, channels=3, *args, **kwargs):
-        super().__init__(dataset_name, dataset_type, img_data_path, segment_info_file_path, segment_masks_path, img_width, img_height, load_ram, num_workers, channels, *args, **kwargs)
+    def __init__(self, dataset_name, dataset_type, img_data_path, segment_info_file_path, segment_masks_path, img_width, img_height, load_ram=False, load_orig_size=True, num_workers=4, channels=3, *args, **kwargs):
+        super().__init__(dataset_name, dataset_type, img_data_path, segment_info_file_path, segment_masks_path, img_width, img_height, load_ram, load_orig_size, num_workers, channels, *args, **kwargs)
         # self.label_list = ct_scripts_label_list  # special data information from cityscapescripts - do not use in general
+
+        if load_orig_size:
+            test_city_name = os.listdir(img_data_path)[0]
+            test_img_name = os.listdir(os.path.join(img_data_path, test_city_name))[0]
+            img_load_test = cv2.imread(os.path.join(img_data_path, test_city_name, test_img_name))
+            self.load_ram_img_height = img_load_test.shape[0]
+            self.load_ram_img_width = img_load_test.shape[1]
+        else:
+            self.load_ram_img_height = self.img_height
+            self.load_ram_img_width = self.img_width
 
         if self.load_ram:
             # self.img_loaded_block = np.empty((len(self), self.img_height, self.img_width, self.channels), dtype=np.uint8)
@@ -492,10 +515,11 @@ class Cityscapes_Dataset(Base_Dataset_COCO):
             # annotation_mask_loaded_block = np.empty((len(self), self.img_height, self.img_width, self.channels),
             #                                              dtype=np.float32)
 
-            img_loaded_block = multiprocessing.RawArray(ctypes.c_uint8, len(self) * self.img_height * self.img_width * self.channels)
-            annotation_mask_loaded_block = multiprocessing.RawArray(ctypes.c_float, len(self) * self.img_height * self.img_width * self.channels)
 
-            array_shape = (len(self), self.img_height, self.img_width, self.channels)
+            img_loaded_block = multiprocessing.RawArray(ctypes.c_uint8, len(self) * self.load_ram_img_height * self.load_ram_img_width * self.channels)
+            annotation_mask_loaded_block = multiprocessing.RawArray(ctypes.c_float, len(self) * self.load_ram_img_height * self.load_ram_img_width * self.channels)
+
+            array_shape = (len(self), self.load_ram_img_height, self.load_ram_img_width, self.channels)
             print("Loading Dataset into the RAM...")
             # tmp_ref = self
 
@@ -544,8 +568,8 @@ class Cityscapes_Dataset(Base_Dataset_COCO):
                         #                              dtype=np.float32)
                         pbar.update()
 
-            self.img_loaded_block = tonumpyarray(img_loaded_block, shape=(len(self), self.img_height, self.img_width, self.channels), dtype=np.uint8)
-            self.annotation_mask_loaded_block = tonumpyarray(annotation_mask_loaded_block, shape=(len(self), self.img_height, self.img_width, self.channels), dtype=np.float32)
+            self.img_loaded_block = tonumpyarray(img_loaded_block, shape=(len(self), self.load_ram_img_height, self.load_ram_img_width, self.channels), dtype=np.uint8)
+            self.annotation_mask_loaded_block = tonumpyarray(annotation_mask_loaded_block, shape=(len(self), self.load_ram_img_height, self.load_ram_img_width, self.channels), dtype=np.float32)
             # self.img_loaded_block = img_loaded_block
             # self.annotation_mask_loaded_block = annotation_mask_loaded_block
             # for i in tqdm(range(len(self))):
@@ -649,14 +673,14 @@ class Cityscapes_Dataset(Base_Dataset_COCO):
 
             # img_file_name = img_metadata["file_name"]
 
-            img = Img_DataLoader.load_image(os.path.join(self.img_data_path, img_city_name_dir, self.images_meta_data[idx]["file_name"]), self.img_width, self.img_height)
+            img = Img_DataLoader.load_image(os.path.join(self.img_data_path, img_city_name_dir, self.images_meta_data[idx]["file_name"]), self.load_ram_img_width, self.load_ram_img_height)
 
             annotation = self.annotations_data[img_id]
 
             # annotation_mask = Img_DataLoader.load_image(os.path.join(self.segment_masks_path, annotation["file_name"]), self.img_width, self.img_height)
             # if "file_name" not in annotation.keys():
             #     print(annotation)
-            annotation_mask = Mask_DataLoader.load_image(os.path.join(self.segment_masks_path, annotation["file_name"]), self.img_width, self.img_height, self.segment_info["annotations"][idx], self.categories_id)
+            annotation_mask = Mask_DataLoader.load_image(os.path.join(self.segment_masks_path, annotation["file_name"]), self.load_ram_img_width, self.load_ram_img_height, self.segment_info["annotations"][idx], self.categories_id)
 
             # annotation.pop("file_name")
             # plt.imshow(img)

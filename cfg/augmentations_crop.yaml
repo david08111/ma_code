@@ -1,0 +1,28 @@
+settings:
+  annotation_data_type: [panoptic_mask]
+
+transformations: # potentially more settings available but standard ones preffered (configure with kwargs)
+  affine:
+    scale: [0.8, 1.2]
+#    translate_percent: [0, 0.2]
+    rotate: [-5, 5]
+  coarse_dropout:
+    max_holes: 3
+    max_height: 20
+    max_width: 20
+    min_holes: 1
+    fill_value: 0
+    mask_fill_value: 0
+    p: 0.05
+#  elastictransform:
+#    p: 0.05
+  horizontalflip:
+    p: 0.5
+  pixeldropout:
+    dropout_prob: 0.01
+    mask_drop_value: 0
+    p: 0.05
+  randomcrop: ## input arguments handled by
+    height: 800
+    width: 800
+    p: 1.0

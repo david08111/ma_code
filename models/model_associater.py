@@ -5,6 +5,9 @@ from utils import Builder
 import torchvision.models as torch_models
 import segmentation_models_pytorch as segm_models_pt
 # from segmentation_models_pytorch import *
+from .segformer_models import SegFormer, DAFormer
+
+# from .models_huggingface import HFSegformerCityscapes
 
 
 torchvision_segm_model_map_dict = {"deeplabv3_mobilenet_v3_large": torch_models.segmentation.deeplabv3_mobilenet_v3_large,
@@ -31,10 +34,17 @@ segmentation_models_pytorch_map_dict = {"unet": segm_models_pt.Unet,
                                         "pspnet": segm_models_pt.PSPNet
 }
 
+segformer_models_map_dict = {
+    "segformer": SegFormer,
+    "daformer": DAFormer
+}
 
+# huggingface_model_map_dict = {
+#     "segformer-b4-finetuned-cityscapes-1024-1024": HFSegformerCityscapes
+# }
 
 class ModelAssociater():
-    def __int__(self):
+    def __init__(self):
         pass
 
     @staticmethod
@@ -91,6 +101,9 @@ class ModelAssociater():
 
             model_name_encoder = model_name_split_list.pop(0)
 
+            model_architecture_config_tmp.pop("img_width")
+            model_architecture_config_tmp.pop("img_height")
+
             for name in model_name_split_list:
                 model_name_encoder += "_" + name
 
@@ -106,6 +119,14 @@ class ModelAssociater():
         #     configer_dict = {}
         #     configer = contrast_seg.Configer(config_dict=configer_dict)
         #     return contrast_seg.ModelManager(configer)
+        elif model_origin == "segformer_models":
+
+            model_architecture_config_tmp["img_size"] = min(1024, max(model_architecture_config_tmp.pop("img_width"), model_architecture_config_tmp.pop("img_height")))
+            model_architecture_config_tmp["num_classes"] = model_architecture_config_tmp.pop("embedding_dims")
+            return segformer_models_map_dict[model_name](**model_architecture_config_tmp)
+        # elif model_origin == "hugging_face":
+        #     return huggingface_model_map_dict[model_name](model_name, **model_architecture_config_tmp)
+
 
 
     @staticmethod

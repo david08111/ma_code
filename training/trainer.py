@@ -196,7 +196,7 @@ class Net_trainer():
             net.model.eval()
             with torch.no_grad():
 
-                for batch_id, datam in enumerate(data["train_loader"]):
+                for batch_id, datam in enumerate(tqdm(data["train_loader"], desc="Epoch_init", file=sys.stdout)):
 
                     [inputs, masks, annotations_data] = datam
 

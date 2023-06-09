@@ -32,7 +32,6 @@ class EmbeddingOutputAssociatorWrapper():
 
     def create_output_from_embeddings(self, outputs, dataset_category_list, annotations_data, *args, **kwargs):
         return self.output_creator.create_output_from_embeddings(outputs, dataset_category_list, annotations_data, *args, **kwargs)
-
     def create_association_from_embeddings(self, outputs, dataset_category_list, annotations_data, *args, **kwargs):
         return self.output_creator.create_association_from_embeddings(outputs, dataset_category_list, annotations_data, *args, **kwargs)
 
