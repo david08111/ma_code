@@ -5,6 +5,9 @@ from utils import Builder
 import torchvision.models as torch_models
 import segmentation_models_pytorch as segm_models_pt
 # from segmentation_models_pytorch import *
+from mmseg.apis import inference_model, init_model, show_result_pyplot
+from mmengine.config import Config, DictAction
+
 from .segformer_models import SegFormer, DAFormer
 
 # from .models_huggingface import HFSegformerCityscapes
@@ -37,6 +40,12 @@ segmentation_models_pytorch_map_dict = {"unet": segm_models_pt.Unet,
 segformer_models_map_dict = {
     "segformer": SegFormer,
     "daformer": DAFormer
+}
+
+mmseg_models_map_dict = {
+    "segformer-b3-cityscapes": "./models/mmsegmentation/configs/segformer/segformer_mit-b3_8xb1-160k_cityscapes-1024x1024.py",
+    "hr48-ocr-cityscapes": "./models/mmsegmentation/configs/ocrnet/ocrnet_hr48_4xb2-160k_cityscapes-512x1024.py",
+    "setr-pup-cityscapes": "./models/mmsegmentation/configs/setr/setr_vit-l_pup_8xb1-80k_cityscapes-768x768.py"
 }
 
 # huggingface_model_map_dict = {
@@ -126,6 +135,23 @@ class ModelAssociater():
             return segformer_models_map_dict[model_name](**model_architecture_config_tmp)
         # elif model_origin == "hugging_face":
         #     return huggingface_model_map_dict[model_name](model_name, **model_architecture_config_tmp)
+        elif model_origin == "mmseg":
+            # model_architecture_config_tmp.pop("img_width")
+            # model_architecture_config_tmp.pop("img_height")
+            # model_architecture_config_tmp["model.decode_head.num_classes"] = model_architecture_config_tmp.pop("embedding_dims")
+            cfg = Config.fromfile(mmseg_models_map_dict[model_name])
+            if isinstance(cfg["model"]["decode_head"], list):
+                for elem in cfg["model"]["decode_head"]:
+                    elem["num_classes"] = model_architecture_config_tmp["embedding_dims"]
+            else:
+                cfg["model"]["decode_head"]["num_classes"] = model_architecture_config_tmp["embedding_dims"]
+
+            if "img_size" in cfg["model"]["backbone"].keys():
+                cfg["model"]["backbone"]["img_size"] = (model_architecture_config_tmp["img_height"], model_architecture_config_tmp["img_width"])
+            # model_architecture_config_tmp["img_size"] = min(1024, max(model_architecture_config_tmp.pop("img_width"), model_architecture_config_tmp.pop("img_height")))
+            # model_architecture_config_tmp["num_classes"] = model_architecture_config_tmp.pop("embedding_dims")
+            # return init_model(cfg, cfg_options=model_architecture_config_tmp)
+            return init_model(cfg)
 
 
 

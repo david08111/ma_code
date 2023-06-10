@@ -506,6 +506,7 @@ class Net_trainer():
         # # # # remove !
         # ######
         # self.start_epoch -= 1
+        # self.start_epoch = 10
         # self.start_epoch = 160
         # #########
         for epoch in range(self.start_epoch, self.max_epoch + 1):

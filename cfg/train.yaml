@@ -5,8 +5,8 @@ model:
 #    model_architecture_name: deeplabv3_resnet50
 #    model_architecture_origin: segmentation_models_pytorch
 #    model_architecture_name: unet_inceptionresnetv2
-    model_architecture_origin: segformer_models
-    model_architecture_name: segformer
+    model_architecture_origin: mmseg
+    model_architecture_name: setr-pup-cityscapes
 #    pretrained: True
     embedding_dims: 50
   channels: 3
@@ -54,16 +54,16 @@ scheduler:
     cooldown: 20
 
 training:
-  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/segformer_debug"
+  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/setr_hierarchical_bt_ct_debug"
 #  gpu_ids: [0]
   save_freq: 10
-  metrics_calc_freq: 10
+  metrics_calc_freq: 150
   num_epochs: 150
   use_cpp: False
   AMP: False
   compile: False
   best_eval_mode: "min"
-  cuml_mem_alloc: 2000 # in MB
+  cuml_mem_alloc: 2000000000 # in MB?
   embedding_handler:
     storage_step_update_sample_size: 1     #per class base
     embedding_storage:
@@ -141,7 +141,7 @@ loss:
 
 
 data:
-  datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref_debug_bigger.yaml"
+  datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref.yaml"
   batch_size: 2
   num_workers: 2
   prefetch_factor: 4 # currently deprecated
@@ -153,7 +153,7 @@ data:
 
 logging:
   name: "LOG"
-  save_path: "/work/scratch/dziuba/ma_code_runs/logs/segformer_debug"
+  save_path: "/work/scratch/dziuba/ma_code_runs/logs/setr_hierarchical_bt_ct_debug"
   num_log_img: 5
   log_graph: False
   wandb_config:

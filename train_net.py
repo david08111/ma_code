@@ -35,7 +35,7 @@ def train_net(config_path, verbose):
 
     # rmm.reinitialize(pool_allocator=True,
     #                  initial_pool_size=config_dict["training"]["cuml_mem_alloc"],
-    #                  maximum_pool_size=2e9)
+    #                  maximum_pool_size=6e9)
     # mr = rmm.mr.get_current_device_resource()
     # stats_pool_memory_resource = rmm.mr.StatisticsResourceAdaptor(mr)
     # rmm.mr.set_current_device_resource(stats_pool_memory_resource)
@@ -43,6 +43,15 @@ def train_net(config_path, verbose):
     torch.manual_seed(10)
     torch.backends.cudnn.benchmark = True
     # torch.cuda.memory.change_current_allocator(rmm.rmm_torch_allocator)
+
+    # from mmseg.apis import inference_model, init_model, show_result_pyplot
+    # # import mmcv
+    #
+    # config_file = '/work/scratch/dziuba/repos/ma_code/models/mmsegmentation/configs/segformer/segformer_mit-b4_8xb1-160k_cityscapes-1024x1024.py'
+    # # checkpoint_file = 'pspnet_r50-d8_512x1024_40k_cityscapes_20200605_003338-2966598c.pth'
+    #
+    # # build the model from a config file and a checkpoint file
+    # model = init_model(config_file, device='cuda')
 
 
 
