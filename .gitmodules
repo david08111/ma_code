@@ -7,3 +7,6 @@
 [submodule "models/segformer_models"]
 	path = models/segformer_models
 	url = https://github.com/david08111/segformer.git
+[submodule "models/mmsegmentation"]
+	path = models/mmsegmentation
+	url = https://github.com/david08111/mmsegmentation.git
