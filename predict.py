@@ -68,7 +68,11 @@ def predict(visualize, in_path, out_path, weight_file, config_path, copy):
     embedding_handler.load_state_dict(state["embedding_handler"])
 
 
-
+    augmentations = None
+    for key in config_dict["data"]["augmentations"]["transformations"].keys():
+        if "crop" in key:
+            augmentations = dict(config_dict["data"]["augmentations"])
+            augmentations["transformations"] = {key: augmentations["transformations"][key]}
 
     data = {
         # "pred_loader": DataLoader(
@@ -79,7 +83,7 @@ def predict(visualize, in_path, out_path, weight_file, config_path, copy):
         #     pin_memory=True)
         "pred_loader": DataLoader(
             dataset=DataHandlerPlainImages(in_path, config_dict["data"]["img_height"], config_dict["data"]["img_width"], config_dict["model"]["channels"], \
-                                           device, config_dict["data"]["num_workers"]),
+                                           device, config_dict["data"]["num_workers"], load_orig_size=True, augmentations_config=augmentations),
             batch_size=1, shuffle=False, num_workers=config_dict["data"]["num_workers"], drop_last=False,
             pin_memory=True, collate_fn=custom_collate_plain_images)
     }

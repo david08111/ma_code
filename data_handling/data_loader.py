@@ -36,48 +36,18 @@ class Img_DataLoader():
         if not os.path.isfile(file_path):
             raise NameError("File " + file_path + " does not exist!")
 
-        # img_data = np.zeros((net_input_width, net_input_height, net_input_channels))
-
-        # try:
 
         img_load = cv2.imread(file_path)
-        # print(file_path)
-        # if img_load is None:
-        #     print("FAIL!")
-        #     print(file_path)
-        # print(img_load)
+
         img_load = cv2.cvtColor(img_load, cv2.COLOR_BGR2RGB)
 
         img_data = cv2.resize(img_load, (width, height))
 
-        # aug_crop_aspect_ratio = iaa.CenterPadToAspectRatio(1)
-        # img_data = aug_crop_aspect_ratio(images=[img_load])[0]
-
-
-
-        # if img_load.shape[0] > img_load.shape[1]:
-        #     raise str("Width/Height ratio < 0 for file " + file_path)
 
         # img_data = cv2.resize(cv2.imread(file_path), (net_input_width, net_input_height))
         # plt.imshow(img_data)
         # plt.show()
-        # except:
-        #     print(file_path)
-        # file_name = os.path.basename(file_path)
 
-
-        # moved dtype adaption to float to custom_collate_fn due to problems with augmentation using albumentationsa
-        # img_data = img_data.astype(np.uint8)
-
-        # img_data = img_data.astype(np.float32)
-
-
-        # mask_data = np.zeros((img_data.shape[:2]))
-        #
-        # unique_colors = np.unique(np.reshape(img_data, (-1, 3)), axis=0)
-        # for color in unique_colors.tolist():
-        #     mask_data[img_data == unique_colors] = color[0] + 256 * color[1] + 256 * 256 * color[2]
-        # return img_data, file_name
         return img_data
 # deprecated
     @staticmethod
@@ -93,14 +63,7 @@ class Img_DataLoader():
         Returns:
             Images as nd array, list containing according file names
         """
-        # if os.path.isdir(img_data_path):
-        #     file_list = os.listdir(img_data_path)
-        #     number_files = len(file_list)
-        # elif os.path.isfile(img_data_path):
-        #     file_list = img_data_path
-        #     number_files = len(file_list)
-        # else:
-        #     raise Exception("Dir path or file does not exist!")
+
         number_files = len(file_list)
 
 
@@ -108,8 +71,6 @@ class Img_DataLoader():
         file_names = []
         file_paths = []
 
-        # if os.path.isdir(img_data_path):
-        #     for root, dirs, files in os.walk(img_data_path):
         counter = 0
         for file in file_list:
             # file_img = cv2.imread(file)
@@ -120,10 +81,6 @@ class Img_DataLoader():
             file_names.append(os.path.basename(file))
             # file_paths.append(os.path.join(img_data_path, file))
             counter += 1
-        # elif os.path.isfile(img_data_path):
-        #     file_img = cv2.imread(img_data_path)
-        #     img_data[0] = cv2.resize(file_img, (net_input_width, net_input_height))
-        #     file_names.append(os.path.basename(img_data_path))
 
         img_data = img_data.astype(np.uint8)
 
@@ -172,21 +129,6 @@ class Mask_DataLoader():
 
         # plt.imshow(img_load)
         # plt.show()
-        # aug_crop_aspect_ratio = iaa.CenterPadToAspectRatio(1)
-        # img_data = aug_crop_aspect_ratio(images=[img_load])[0]
-
-
-
-        # if img_load.shape[0] > img_load.shape[1]:
-        #     raise str("Width/Height ratio < 0 for file " + file_path)
-
-        # img_data = cv2.resize(cv2.imread(file_path), (net_input_width, net_input_height))
-        # plt.imshow(img_data)
-        # plt.show()
-        # except:
-        #     print(file_path)
-        # file_name = os.path.basename(file_path)
-
 
         # img_data = img_load.astype(np.uint8)
 
@@ -234,23 +176,13 @@ class Mask_DataLoader():
         Returns:
             Images as nd array, list containing according file names
         """
-        # if os.path.isdir(img_data_path):
-        #     file_list = os.listdir(img_data_path)
-        #     number_files = len(file_list)
-        # elif os.path.isfile(img_data_path):
-        #     file_list = img_data_path
-        #     number_files = len(file_list)
-        # else:
-        #     raise Exception("Dir path or file does not exist!")
         number_files = len(file_list)
-
 
         img_data = np.zeros((number_files, width, height, channels))
         file_names = []
         file_paths = []
 
-        # if os.path.isdir(img_data_path):
-        #     for root, dirs, files in os.walk(img_data_path):
+
         counter = 0
         for file in file_list:
             # file_img = cv2.imread(file)
@@ -261,10 +193,6 @@ class Mask_DataLoader():
             file_names.append(os.path.basename(file))
             # file_paths.append(os.path.join(img_data_path, file))
             counter += 1
-        # elif os.path.isfile(img_data_path):
-        #     file_img = cv2.imread(img_data_path)
-        #     img_data[0] = cv2.resize(file_img, (net_input_width, net_input_height))
-        #     file_names.append(os.path.basename(img_data_path))
 
         img_data = img_data.astype(np.uint8)
 

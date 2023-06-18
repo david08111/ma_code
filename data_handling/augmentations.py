@@ -128,3 +128,9 @@ class Augmentation_Wrapper():
         # return {"img": transformed["image"],
         #         "annotation_mask": transformed["mask"],
         #         "annotations_data": data_dict["annotations_data"]}
+
+    def apply_augmentation_plain_img(self, img):
+
+        transformed_img = self.transform(image=img)
+
+        return transformed_img["image"]

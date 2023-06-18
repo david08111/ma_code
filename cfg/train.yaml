@@ -6,7 +6,7 @@ model:
 #    model_architecture_origin: segmentation_models_pytorch
 #    model_architecture_name: unet_inceptionresnetv2
     model_architecture_origin: mmseg
-    model_architecture_name: mask2former-r101-cityscapes
+    model_architecture_name: ocrnet-r101-d8-cityscapes
 #    pretrained: True
     embedding_dims: 50
   channels: 3
