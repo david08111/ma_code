@@ -3,11 +3,11 @@ model:
   model_architecture:
 #    model_architecture_origin: torchvision
 #    model_architecture_name: deeplabv3_resnet50
-#    model_architecture_origin: segmentation_models_pytorch
-#    model_architecture_name: unet_inceptionresnetv2
-    model_architecture_origin: mmseg
-    model_architecture_name: ocrnet-r101-d8-cityscapes
-#    pretrained: True
+    model_architecture_origin: segmentation_models_pytorch
+    model_architecture_name: unet_inceptionresnetv2
+#    model_architecture_origin: mmseg
+#    model_architecture_name: ocrnet-r101-d8-cityscapes
+    pretrained: True
     embedding_dims: 50
   channels: 3
   output_creation:  # first list element will be used to create the panoptic output prediction
@@ -54,7 +54,7 @@ scheduler:
     cooldown: 20
 
 training:
-  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/debug25"
+  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/debug26"
 #  gpu_ids: [0]
   save_freq: 10
   metrics_calc_freq: 150
@@ -74,7 +74,8 @@ training:
 
 loss:
   train_loss:
-    hierarchical_cluster_batch_contrast_panoptic:
+#    hierarchical_cluster_batch_contrast_panoptic:
+    hierarchical_cluster_mean_mov_avg_update_contrast_panoptic:
       inter_cls_contrastive_loss:
         mse_hinged_pos:
           margin: 45
@@ -97,6 +98,7 @@ loss:
         mse_hinged_neg:
           margin: 0.5
           norm: 2
+      mov_avg_factor: 0.1
       reg_loss_norm: 2
       inter_cls_contrastive_loss_weight: 1
       intra_cls_contrastive_loss_weight: 1
@@ -104,7 +106,8 @@ loss:
       intra_inst_contrastive_loss_weight: 1
       regularization_weight: 0.001
   val_loss:
-    hierarchical_cluster_batch_contrast_panoptic:
+#    hierarchical_cluster_batch_contrast_panoptic:
+    hierarchical_cluster_mean_mov_avg_update_contrast_panoptic:
       inter_cls_contrastive_loss:
         mse_hinged_pos:
           margin: 45
@@ -127,6 +130,7 @@ loss:
         mse_hinged_neg:
           margin: 0.5
           norm: 2
+      mov_avg_factor: 0.1
       reg_loss_norm: 2
       inter_cls_contrastive_loss_weight: 1
       intra_cls_contrastive_loss_weight: 1
@@ -153,7 +157,7 @@ data:
 
 logging:
   name: "LOG"
-  save_path: "/work/scratch/dziuba/ma_code_runs/logs/debug25"
+  save_path: "/work/scratch/dziuba/ma_code_runs/logs/debug26"
   num_log_img: 5
   log_graph: False
   wandb_config:
