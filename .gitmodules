@@ -10,3 +10,6 @@
 [submodule "models/mmsegmentation"]
 	path = models/mmsegmentation
 	url = https://github.com/david08111/mmsegmentation.git
+[submodule "training/pytorch_metric_learning"]
+	path = training/pytorch_metric_learning
+	url = https://github.com/david08111/pytorch-metric-learning.git
