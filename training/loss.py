@@ -8,7 +8,7 @@ import logging
 import time
 import random
 from .metrics_new import pq_compute_custom, PQStat
-
+from pytorch_metric_learning import losses as pymetricl_losses
 
 float_precision_eps = sys.float_info.epsilon
 float_precision_thr = float_precision_eps * 2
@@ -78,6 +78,16 @@ class Loss_Wrapper():
             return Panoptic_spherical_contrastive_all_embeds_loss(**loss_config)
         # elif loss_type == "spherical_contrast_panoptic_batch_embeds":
         #     return Panoptic_spherical_contrastive_all_embeds_batch_optim_loss(**loss_config)
+
+        elif loss_type == "metric_learning":
+            return MetricLearningLoss(**loss_config)
+
+        elif loss_type == "arcface":
+            return pymetricl_losses.ArcFaceLoss(**loss_config)
+
+        elif loss_type == "supconloss":
+            return pymetricl_losses.SupConLoss(**loss_config)
+
         elif loss_type == "reverse_huber":
             return ReverseHuberLoss(**loss_config)
         elif loss_type == "reverse_huber_threshold":
@@ -4143,6 +4153,25 @@ class Hierarchical_cluster_mean_mov_avg_update_contrast_panoptic_loss(nn.Module)
 #
 #         self.radius_loss_weight = radius_loss_weight
 #         self.similarity_loss_weight = similarity_loss_weight
+
+
+class MetricLearningLoss(nn.Module):
+    def __init__(self, class_metric_loss, inst_metric_loss):
+        super().__init__()
+        self.class_metric_loss = Loss_Wrapper(class_metric_loss).loss
+        self.inst_metric_loss = Loss_Wrapper(inst_metric_loss).loss
+
+    def forward(self, outputs, masks, annotations_data, *args, **kwargs):
+        embedding_inputs = outputs.contiguous().view(outputs.shape[1], -1).T[:100, :]
+        labels = masks[:, 1, :, :].contiguous().view(-1).type(torch.int32)[:100]
+        loss = self.class_metric_loss(embedding_inputs, labels)
+        return loss
+
+    def process_end_batch(self):
+        pass
+
+    def log(self, logger, name, epoch, *args, **kwargs):
+        pass
 
 class MSELossHingedPosWrapper(nn.Module):
     " [margin - norm(inputs, targets)]^2_+"

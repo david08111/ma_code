@@ -74,69 +74,105 @@ training:
 
 loss:
   train_loss:
-#    hierarchical_cluster_batch_contrast_panoptic:
-    hierarchical_cluster_mean_mov_avg_update_contrast_panoptic:
-      inter_cls_contrastive_loss:
-        mse_hinged_pos:
-          margin: 45
-          norm: 2
-#          inner_loss:
-#            mse:
-#              reduction: None
-      intra_cls_contrastive_loss:
-        mse_hinged_neg:
-          margin: 15
-          norm: 2
-#          inner_loss:
-#            mse:
-#              reduction: None
-      inter_inst_contrastive_loss:
-        mse_hinged_pos:
-          margin: 3
-          norm: 2
-      intra_inst_contrastive_loss:
-        mse_hinged_neg:
-          margin: 0.5
-          norm: 2
-      mov_avg_factor: 0.1
-      reg_loss_norm: 2
-      inter_cls_contrastive_loss_weight: 1
-      intra_cls_contrastive_loss_weight: 1
-      inter_inst_contrastive_loss_weight: 1
-      intra_inst_contrastive_loss_weight: 1
-      regularization_weight: 0.001
+    metric_learning:
+      class_metric_loss:
+        arcface:
+          num_classes: 19
+          embedding_size: 50
+      inst_metric_loss:
+        arcface:
+          num_classes: 19
+          embedding_size: 50
   val_loss:
-#    hierarchical_cluster_batch_contrast_panoptic:
-    hierarchical_cluster_mean_mov_avg_update_contrast_panoptic:
-      inter_cls_contrastive_loss:
-        mse_hinged_pos:
-          margin: 45
-          norm: 2
-      #          inner_loss:
-      #            mse:
-      #              reduction: None
-      intra_cls_contrastive_loss:
-        mse_hinged_neg:
-          margin: 15
-          norm: 2
-      #          inner_loss:
-      #            mse:
-      #              reduction: None
-      inter_inst_contrastive_loss:
-        mse_hinged_pos:
-          margin: 3
-          norm: 2
-      intra_inst_contrastive_loss:
-        mse_hinged_neg:
-          margin: 0.5
-          norm: 2
-      mov_avg_factor: 0.1
-      reg_loss_norm: 2
-      inter_cls_contrastive_loss_weight: 1
-      intra_cls_contrastive_loss_weight: 1
-      inter_inst_contrastive_loss_weight: 1
-      intra_inst_contrastive_loss_weight: 1
-      regularization_weight: 0.001
+    metric_learning:
+      class_metric_loss:
+        arcface:
+          num_classes: 19
+          embedding_size: 50
+      inst_metric_loss:
+        arcface:
+          num_classes: 19
+          embedding_size: 50
+#  train_loss:
+#    metric_learning:
+#      class_metric_loss:
+#        supconloss:
+#          temperature: 0.1
+#      inst_metric_loss:
+#        supconloss:
+#          temperature: 0.1
+#  val_loss:
+#    metric_learning:
+#      class_metric_loss:
+#        supconloss:
+#          temperature: 0.1
+#      inst_metric_loss:
+#        supconloss:
+#          temperature: 0.1
+#  train_loss:
+##    hierarchical_cluster_batch_contrast_panoptic:
+#    hierarchical_cluster_mean_mov_avg_update_contrast_panoptic:
+#      inter_cls_contrastive_loss:
+#        mse_hinged_pos:
+#          margin: 45
+#          norm: 2
+##          inner_loss:
+##            mse:
+##              reduction: None
+#      intra_cls_contrastive_loss:
+#        mse_hinged_neg:
+#          margin: 15
+#          norm: 2
+##          inner_loss:
+##            mse:
+##              reduction: None
+#      inter_inst_contrastive_loss:
+#        mse_hinged_pos:
+#          margin: 3
+#          norm: 2
+#      intra_inst_contrastive_loss:
+#        mse_hinged_neg:
+#          margin: 0.5
+#          norm: 2
+#      mov_avg_factor: 0.1
+#      reg_loss_norm: 2
+#      inter_cls_contrastive_loss_weight: 1
+#      intra_cls_contrastive_loss_weight: 1
+#      inter_inst_contrastive_loss_weight: 1
+#      intra_inst_contrastive_loss_weight: 1
+#      regularization_weight: 0.001
+#  val_loss:
+##    hierarchical_cluster_batch_contrast_panoptic:
+#    hierarchical_cluster_mean_mov_avg_update_contrast_panoptic:
+#      inter_cls_contrastive_loss:
+#        mse_hinged_pos:
+#          margin: 45
+#          norm: 2
+#      #          inner_loss:
+#      #            mse:
+#      #              reduction: None
+#      intra_cls_contrastive_loss:
+#        mse_hinged_neg:
+#          margin: 15
+#          norm: 2
+#      #          inner_loss:
+#      #            mse:
+#      #              reduction: None
+#      inter_inst_contrastive_loss:
+#        mse_hinged_pos:
+#          margin: 3
+#          norm: 2
+#      intra_inst_contrastive_loss:
+#        mse_hinged_neg:
+#          margin: 0.5
+#          norm: 2
+#      mov_avg_factor: 0.1
+#      reg_loss_norm: 2
+#      inter_cls_contrastive_loss_weight: 1
+#      intra_cls_contrastive_loss_weight: 1
+#      inter_inst_contrastive_loss_weight: 1
+#      intra_inst_contrastive_loss_weight: 1
+#      regularization_weight: 0.001
   metrics:
     - panoptic_quality:
         filter: None
