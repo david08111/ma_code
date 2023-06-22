@@ -79,14 +79,97 @@ class Loss_Wrapper():
         # elif loss_type == "spherical_contrast_panoptic_batch_embeds":
         #     return Panoptic_spherical_contrastive_all_embeds_batch_optim_loss(**loss_config)
 
-        elif loss_type == "metric_learning":
-            return MetricLearningLoss(**loss_config)
+        elif loss_type == "metric_learning_sem_segm":
+            return MetricLearningSemSegmLoss(**loss_config)
 
-        elif loss_type == "arcface":
+        elif loss_type == "metric_learning_panoptic_segm":
+            return MetricLearningPanopticSegmLoss(**loss_config)
+
+        ###############################
+        #### pytorch-metric-learning losses
+        ###############################
+        elif loss_type == "angular_loss":
+            return pymetricl_losses.AngularLoss(**loss_config)
+
+        elif loss_type == "circle_loss":
             return pymetricl_losses.ArcFaceLoss(**loss_config)
 
-        elif loss_type == "supconloss":
+        elif loss_type == "arcface_loss":
+            return pymetricl_losses.ArcFaceLoss(**loss_config)
+
+        elif loss_type == "supcon_loss":
             return pymetricl_losses.SupConLoss(**loss_config)
+
+        elif loss_type == "contrastive_loss":
+            return pymetricl_losses.ContrastiveLoss(**loss_config)
+
+        elif loss_type == "cosface_loss":
+            return pymetricl_losses.ArcFaceLoss(**loss_config)
+
+        elif loss_type == "lifted_structure_loss":
+            return pymetricl_losses.LiftedStructureLoss(**loss_config)
+
+        elif loss_type == "generalized_lifted_structure_loss":
+            return pymetricl_losses.GeneralizedLiftedStructureLoss(**loss_config)
+
+        elif loss_type == "intra_pair_variance_loss":
+            return pymetricl_losses.IntraPairVarianceLoss(**loss_config)
+
+        elif loss_type == "large_margin_softmax_loss":
+            return pymetricl_losses.LargeMarginSoftmax(**loss_config)
+
+        elif loss_type == "manifold_loss":
+            return pymetricl_losses.ManifoldLoss(**loss_config)
+
+        elif loss_type == "margin_loss":
+            return pymetricl_losses.MarginLoss(**loss_config)
+
+        elif loss_type == "multi_similarity_loss":
+            return pymetricl_losses.MultiSimilarityLoss(**loss_config)
+
+        elif loss_type == "nca_loss":
+            return pymetricl_losses.NCALoss(**loss_config)
+
+        elif loss_type == "normalized_softmax_loss":
+            return pymetricl_losses.NormalizedSoftmaxLoss(**loss_config)
+
+        elif loss_type == "ntxent_loss":       #  also known as info-nce
+            return pymetricl_losses.NTXentLoss(**loss_config)
+
+        elif loss_type == "p2s_grad_loss":
+            return pymetricl_losses.P2SGradLoss(**loss_config)
+
+        elif loss_type == "pnp_loss":
+            return pymetricl_losses.PNPLoss(**loss_config)
+
+        elif loss_type == "proxy_anchor_loss":
+            return pymetricl_losses.ProxyAnchorLoss(**loss_config)
+
+        elif loss_type == "proxy_nca_loss":
+            return pymetricl_losses.ProxyNCALoss(**loss_config)
+
+        elif loss_type == "snr_contrastive_loss":
+            return pymetricl_losses.SignalToNoiseRatioContrastiveLoss(**loss_config)
+
+        elif loss_type == "soft_triple_loss":
+            return pymetricl_losses.SoftTripleLoss(**loss_config)
+
+        elif loss_type == "sphere_face_loss":
+            return pymetricl_losses.SphereFaceLoss(**loss_config)
+
+        elif loss_type == "sub_center_arcface_loss":
+            return pymetricl_losses.SubCenterArcFaceLoss(**loss_config)
+
+        elif loss_type == "triplet_margin_loss":
+            return pymetricl_losses.TripletMarginLoss(**loss_config)
+
+        elif loss_type == "tuplet_margin_loss":
+            return pymetricl_losses.TupletMarginLoss(**loss_config)
+
+        elif loss_type == "vicreg_loss":
+            return pymetricl_losses.VICRegLoss(**loss_config)
+        ###############################
+        ###############################
 
         elif loss_type == "reverse_huber":
             return ReverseHuberLoss(**loss_config)
@@ -2037,7 +2120,7 @@ class Hierarchical_cluster_batch_contrast_loss(nn.Module):
 
         # batch_size = outputs.shape[0]
 
-        embedding_handler = kwargs["embedding_handler"]
+        # embedding_handler = kwargs["embedding_handler"]
 
         # cls_mean_embeddings = embedding_handler.embedding_storage.cls_mean_embeddings
 
@@ -2063,7 +2146,7 @@ class Hierarchical_cluster_batch_contrast_loss(nn.Module):
 
 
 
-        num_categories = len(embedding_handler.embedding_storage.cls_mean_embeddings.keys())
+        num_categories = len(kwargs["dataset_categories"].keys())
 
         # mean_embedding_cat_id_indx_list = [i for i in range(len(embedding_handler.cls_mean_embeddings.keys()))]
         #
@@ -2072,7 +2155,7 @@ class Hierarchical_cluster_batch_contrast_loss(nn.Module):
         mean_embedding_dict = {}
 
         if len(self.inter_cls_ct_loss_item_class_dict) != num_categories + 1 or len(self.intra_cls_ct_loss_item_class_dict) != num_categories + 1 or len(self.regularization_loss_item_class_dict) != num_categories + 1:
-            for cat_id in embedding_handler.embedding_storage.cls_mean_embeddings.keys():
+            for cat_id in kwargs["dataset_categories"].keys():
                 # self.abs_radius_err_class_dict[cat_id] = np.zeros(self.bin_elems)
                 self.inter_cls_ct_loss_item_class_dict[cat_id] = 0
                 self.intra_cls_ct_loss_item_class_dict[cat_id] = 0
@@ -3086,7 +3169,7 @@ class Hierarchical_cluster_batch_contrast_panoptic_loss(nn.Module):
 
         # batch_size = outputs.shape[0]
 
-        embedding_handler = kwargs["embedding_handler"]
+        # embedding_handler = kwargs["embedding_handler"]
 
         # cls_mean_embeddings = embedding_handler.embedding_storage.cls_mean_embeddings
 
@@ -3120,7 +3203,7 @@ class Hierarchical_cluster_batch_contrast_panoptic_loss(nn.Module):
 
 
 
-        num_categories = len(embedding_handler.embedding_storage.cls_mean_embeddings.keys())
+        num_categories = len(kwargs["dataset_categories"].keys())
 
         # mean_embedding_cat_id_indx_list = [i for i in range(len(embedding_handler.cls_mean_embeddings.keys()))]
         #
@@ -3130,7 +3213,7 @@ class Hierarchical_cluster_batch_contrast_panoptic_loss(nn.Module):
         # inst_mean_embedding_dict = {}
 
         if len(self.inter_cls_ct_loss_item_class_dict) != num_categories + 1 or len(self.intra_cls_ct_loss_item_class_dict) != num_categories + 1 or len(self.regularization_loss_item_class_dict) != num_categories + 1:
-            for cat_id in embedding_handler.embedding_storage.cls_mean_embeddings.keys():
+            for cat_id in kwargs["dataset_categories"].keys():
                 # self.abs_radius_err_class_dict[cat_id] = np.zeros(self.bin_elems)
                 self.inter_cls_ct_loss_item_class_dict[cat_id] = 0
                 self.intra_cls_ct_loss_item_class_dict[cat_id] = 0
@@ -3158,7 +3241,7 @@ class Hierarchical_cluster_batch_contrast_panoptic_loss(nn.Module):
                 unique_cat_id = int(unique_cat_id.item())
                 # test = embedding_handler.dataset_categories
                 # test2 = embedding_handler.dataset_categories[unique_cat_id]
-                if not embedding_handler.dataset_categories[unique_cat_id]["isthing"]:
+                if not kwargs["dataset_categories"][unique_cat_id]["isthing"]:
 
                     outputs_indx_select = masks[:, 1, :, :] == unique_cat_id
                     outputs_cat_id_embeddings = outputs_reordered_tmp[:, outputs_indx_select]
@@ -4155,15 +4238,51 @@ class Hierarchical_cluster_mean_mov_avg_update_contrast_panoptic_loss(nn.Module)
 #         self.similarity_loss_weight = similarity_loss_weight
 
 
-class MetricLearningLoss(nn.Module):
+class MetricLearningSemSegmLoss(nn.Module):
+    def __init__(self, class_metric_loss):
+        super().__init__()
+        self.class_metric_loss = Loss_Wrapper(class_metric_loss).loss
+        self.classid2labelindx_dict = None
+
+    def forward(self, outputs, masks, annotations_data, *args, **kwargs):
+        if not self.classid2labelindx_dict:
+            self.classid2labelindx_dict = {}
+            cls_indx_counter = 0
+            for cat_id in list(kwargs["dataset_categories"].keys()):
+                self.classid2labelindx_dict[cat_id] = cls_indx_counter
+                cls_indx_counter += 1
+
+        embedding_inputs = outputs.contiguous().view(outputs.shape[1], -1).T
+        labels = masks[:, 1, :, :].contiguous().view(-1).type(torch.long)
+
+        foreground_mask = labels != 0
+        embedding_inputs = embedding_inputs[foreground_mask, :]
+        labels = labels[foreground_mask]
+
+        unique_labels_cat_id = torch.unique(labels)
+        for unique_cat_id in unique_labels_cat_id:
+            unique_cat_id = unique_cat_id.item()
+            labels[labels == unique_cat_id] = self.classid2labelindx_dict[unique_cat_id]
+
+        loss = self.class_metric_loss(embedding_inputs, labels)
+        return loss
+
+    def process_end_batch(self):
+        pass
+
+    def log(self, logger, name, epoch, *args, **kwargs):
+        pass
+
+# WIP
+class MetricLearningPanopticSegmLoss(nn.Module):
     def __init__(self, class_metric_loss, inst_metric_loss):
         super().__init__()
         self.class_metric_loss = Loss_Wrapper(class_metric_loss).loss
         self.inst_metric_loss = Loss_Wrapper(inst_metric_loss).loss
 
     def forward(self, outputs, masks, annotations_data, *args, **kwargs):
-        embedding_inputs = outputs.contiguous().view(outputs.shape[1], -1).T[:100, :]
-        labels = masks[:, 1, :, :].contiguous().view(-1).type(torch.int32)[:100]
+        embedding_inputs = outputs.contiguous().view(outputs.shape[1], -1).T
+        labels = masks[:, 1, :, :].contiguous().view(-1).type(torch.long)
         loss = self.class_metric_loss(embedding_inputs, labels)
         return loss
 

@@ -23,9 +23,12 @@ class Net_trainer():
         self.save_freq = save_freq
         self.metrics_calc_freq = metrics_calc_freq
         self.save_path = save_path
-        self.optimizer = Optimizer_Wrapper(net, optim_config)
-        self.scheduler = Scheduler_Wrapper(scheduler_config, self.optimizer)
         self.criterions = criterions
+
+        optim_params = list(net.model.parameters()) + list(criterions["criterion_train"].loss.parameters())
+        self.optimizer = Optimizer_Wrapper(optim_params, optim_config)
+        self.scheduler = Scheduler_Wrapper(scheduler_config, self.optimizer)
+
 
         self.start_epoch = 0
         self.best_eval_mode = best_eval_mode
@@ -254,7 +257,7 @@ class Net_trainer():
                 # plt.show()
 
                 # loss, loss_items = self.criterions["criterion_train"].loss(outputs, masks, annotations_data)
-                loss = self.criterions["criterion_train"].loss(outputs, masks, annotations_data, embedding_handler=self.embedding_handler)
+                loss = self.criterions["criterion_train"].loss(outputs, masks, annotations_data, embedding_handler=self.embedding_handler, dataset_categories=self.dataset_category_dict["train_loader"][0])
 
             # from torchviz import make_dot
             # g = make_dot(loss)
@@ -379,7 +382,7 @@ class Net_trainer():
 
                 with torch.autocast(device_type=self.amp_device, enabled=self.use_amp):
                     outputs, output_items = net(inputs)
-                    loss = self.criterions["criterion_val"].loss(outputs, masks, annotations_data, embedding_handler=self.embedding_handler)
+                    loss = self.criterions["criterion_val"].loss(outputs, masks, annotations_data, embedding_handler=self.embedding_handler, dataset_categories=self.dataset_category_dict["val_loader"][0])
 
                 if epoch % self.metrics_calc_freq == 0 and epoch != 0:
                     final_outputs, final_output_segmentation_data = net.create_output_from_embeddings(outputs,

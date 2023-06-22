@@ -23,9 +23,9 @@ model:
 #
     - nearest_class_mean_association:
         instance_clustering_method:
-#          identity: { } # no args specified
-          cuml_hdbscan:
-            min_samples: 4
+          identity: { } # no args specified
+#          cuml_hdbscan:
+#            min_samples: 4
 #     - multi_sphere_association_flexible:
 #        radius: 1
 #        radius_association_margin: 0.5  # max deviation from radius to still associate to closest radius
@@ -54,17 +54,17 @@ scheduler:
     cooldown: 20
 
 training:
-  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/debug26"
+  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/debug28"
 #  gpu_ids: [0]
   save_freq: 10
-  metrics_calc_freq: 150
-  num_epochs: 150
+  metrics_calc_freq: 10
+  num_epochs: 160
   use_cpp: False
   AMP: False
   compile: False
   best_eval_mode: "min"
   cuml_mem_alloc: 2000000000 # in MB?
-  embedding_handler:
+  embedding_handler: # remove part if necessary for training
     storage_step_update_sample_size: 1     #per class base
     embedding_storage:
       memory_bank:
@@ -74,25 +74,23 @@ training:
 
 loss:
   train_loss:
-    metric_learning:
+    metric_learning_sem_segm:
       class_metric_loss:
-        arcface:
+        sphere_face_loss:
           num_classes: 19
           embedding_size: 50
-      inst_metric_loss:
-        arcface:
-          num_classes: 19
-          embedding_size: 50
+#        arcface_loss:
+#          num_classes: 19
+#          embedding_size: 50
   val_loss:
-    metric_learning:
+    metric_learning_sem_segm:
       class_metric_loss:
-        arcface:
+        sphere_face_loss:
           num_classes: 19
           embedding_size: 50
-      inst_metric_loss:
-        arcface:
-          num_classes: 19
-          embedding_size: 50
+#        arcface_loss:
+#          num_classes: 19
+#          embedding_size: 50
 #  train_loss:
 #    metric_learning:
 #      class_metric_loss:
@@ -193,7 +191,7 @@ data:
 
 logging:
   name: "LOG"
-  save_path: "/work/scratch/dziuba/ma_code_runs/logs/debug26"
+  save_path: "/work/scratch/dziuba/ma_code_runs/logs/debug28"
   num_log_img: 5
   log_graph: False
   wandb_config:
