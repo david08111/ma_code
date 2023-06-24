@@ -217,6 +217,13 @@ class Loss_Wrapper():
         elif loss_type == "dice":
             return DiceLoss(**loss_config)
 
+    def transfer_params(self):
+        set_params = getattr(self.loss, "set_params", None)
+        if callable(set_params):
+            return True
+        else:
+            return False
+
 
 class Metrics_Wrapper():
     def __init__(self, metric_config):
@@ -4241,6 +4248,7 @@ class Hierarchical_cluster_mean_mov_avg_update_contrast_panoptic_loss(nn.Module)
 class MetricLearningSemSegmLoss(nn.Module):
     def __init__(self, class_metric_loss):
         super().__init__()
+        # self.class_metric_loss_type = class_metric_loss
         self.class_metric_loss = Loss_Wrapper(class_metric_loss).loss
         self.classid2labelindx_dict = None
 
@@ -4273,10 +4281,22 @@ class MetricLearningSemSegmLoss(nn.Module):
     def log(self, logger, name, epoch, *args, **kwargs):
         pass
 
+    def set_params(self, params_dict):
+        if params_dict["General_loss_type"] == type(self):
+            if params_dict["class_metric_loss_type"] == type(self.class_metric_loss):
+                self.class_metric_loss.W = params_dict["class_metric_loss_param_W"]
+
+    def get_params(self):
+        return {"General_loss_type": type(self),
+            "class_metric_loss_type": type(self.class_metric_loss),
+            "class_metric_loss_param_W": self.class_metric_loss.W}
+
 # WIP
 class MetricLearningPanopticSegmLoss(nn.Module):
     def __init__(self, class_metric_loss, inst_metric_loss):
         super().__init__()
+        # self.class_metric_loss_type = class_metric_loss
+        # self.inst_metric_loss_type = inst_metric_loss
         self.class_metric_loss = Loss_Wrapper(class_metric_loss).loss
         self.inst_metric_loss = Loss_Wrapper(inst_metric_loss).loss
 
@@ -4291,6 +4311,20 @@ class MetricLearningPanopticSegmLoss(nn.Module):
 
     def log(self, logger, name, epoch, *args, **kwargs):
         pass
+
+    def set_params(self, params_dict):
+        if params_dict["General_loss_type"] == type(self):
+            if params_dict["class_metric_loss_type"] == type(self.class_metric_loss):
+                self.class_metric_loss.W = params_dict["class_metric_loss_param_W"]
+            if params_dict["inst_metric_loss_type"] == type(self.inst_metric_loss):
+                self.inst_metric_loss.W = params_dict["inst_metric_loss_param_W"]
+
+    def get_params(self):
+        return {"General_loss_type": type(self),
+                "class_metric_loss_type": type(self.class_metric_loss),
+                "class_metric_loss_param_W": self.class_metric_loss.W,
+                "inst_metric_loss_type": type(self.inst_metric_loss),
+                "inst_metric_loss_param_W": self.inst_metric_loss.W}
 
 class MSELossHingedPosWrapper(nn.Module):
     " [margin - norm(inputs, targets)]^2_+"

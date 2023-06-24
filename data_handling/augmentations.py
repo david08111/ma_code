@@ -97,7 +97,8 @@ class Augmentation_Wrapper():
         # plt.imshow(data_dict["annotation_mask"][:, :, 0])
         # plt.show()
 
-        annotations_data_segments_dict_tmp = {el["id"]: el for el in data_dict["annotations_data"]["segments_info"]}
+        annotations_data_segments_dict_old = {el["id"]: el for el in data_dict["annotations_data"]["segments_info"]}
+        annotations_data_segments_dict_tmp = []
         # annotations_data_segments_dict_tmp = {}
         # for i in range(len(data_dict["annotations_data"]["segments_info"])):
         #     el = data_dict["annotations_data"]["segments_info"][i]
@@ -105,23 +106,28 @@ class Augmentation_Wrapper():
         #     annotations_data_segments_dict_tmp[el["id"]]["indx"] = i
             # calculate bbox and area for segments new
         segment_ids, segment_id_areas = np.unique(data_dict["annotation_mask"][:, :, 0], return_counts=True)
+        segment_ids = segment_ids.astype(np.int64)
         for segment_id, segment_id_area in zip(segment_ids, segment_id_areas):
             if segment_id == 0:
                 continue
-            if segment_id in annotations_data_segments_dict_tmp.keys():
-                annotations_data_segments_dict_tmp[segment_id]["area"] = segment_id_area
-                annotations_data_segments_dict_tmp[segment_id].pop("bbox", None)
+            # if segment_id in annotations_data_segments_dict_old.keys():
+            annotations_data_segments_dict_tmp.append({"id": segment_id,
+                                                      "category_id": annotations_data_segments_dict_old[segment_id]["category_id"],
+                                                      "iscrowd": annotations_data_segments_dict_old[segment_id]["iscrowd"],
+                                                      "area": int(segment_id_area)})
+                # annotations_data_segments_dict_tmp[segment_id]["area"] = int(segment_id_area)
+                # annotations_data_segments_dict_tmp[segment_id].pop("bbox", None)
                 # segment_id_indx = annotations_data_segments_dict_tmp[segment_id][indx]
                 # data_dict["annotations_data"]["segments_info"][segment_id_indx]["area"] = segment_id_area
                 # data_dict["annotations_data"]["segments_info"][segment_id_indx].pop("bbox")
-            else:
-                raise ValueError("Segment ID " + segment_id + " not in " + data_dict["annotations_data"]["image_id"])
+            # else:
+            #     raise ValueError("Segment ID " + segment_id + " not in " + data_dict["annotations_data"]["image_id"])
 
         # plt.imshow(transformed["image"])
         # plt.show()
         # plt.imshow(transformed["mask"])
         # plt.show()
-
+        data_dict["annotations_data"]["segments_info"] = annotations_data_segments_dict_tmp
 
         return data_dict
 

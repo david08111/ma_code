@@ -228,9 +228,20 @@ class DataHandler(torch.utils.data.Dataset):
             augmented_data_item_dict["img"] = cv2.resize(augmented_data_item_dict["img"], (self.dataset_general_settings["img_width"], self.dataset_general_settings["img_height"]))
 
         if augmented_data_item_dict["annotation_mask"].shape[0] > self.dataset_general_settings["img_height"] and augmented_data_item_dict["annotation_mask"].shape[1] > self.dataset_general_settings["img_width"]:
+            resize_factor = (self.dataset_general_settings["img_height"] / augmented_data_item_dict["annotation_mask"].shape[0]) * (self.dataset_general_settings["img_width"] / augmented_data_item_dict["annotation_mask"].shape[1])
+            for segment in augmented_data_item_dict["annotations_data"]["segments_info"]:
+                segment["area"] = int(segment["area"] * resize_factor)
+
             augmented_data_item_dict["annotation_mask"] = cv2.resize(augmented_data_item_dict["annotation_mask"], (
             self.dataset_general_settings["img_width"], self.dataset_general_settings["img_height"]),
                                                          interpolation=cv2.INTER_NEAREST)
+
+        # ## new segments info calculation since potentially huge changes after augmentation
+        # segments_info_tmp = []
+        #
+        #
+        #
+        #
 
         max_type_value = np.iinfo(augmented_data_item_dict["img"].dtype).max
 

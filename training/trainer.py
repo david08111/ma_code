@@ -24,8 +24,15 @@ class Net_trainer():
         self.metrics_calc_freq = metrics_calc_freq
         self.save_path = save_path
         self.criterions = criterions
+        if criterions["criterion_train"].transfer_params():
+            criterions["criterion_train"].loss.to(device)
+            # criterions["criterion_val"].loss.to(device)
+            criterions["criterion_val"].loss.set_params(criterions["criterion_train"].loss.get_params())
+            # test = criterions["criterion_val"].loss
 
-        optim_params = list(net.model.parameters()) + list(criterions["criterion_train"].loss.parameters())
+            optim_params = list(net.model.parameters()) + list(criterions["criterion_train"].loss.parameters())
+        else:
+            optim_params = net.model.parameters()
         self.optimizer = Optimizer_Wrapper(optim_params, optim_config)
         self.scheduler = Scheduler_Wrapper(scheduler_config, self.optimizer)
 
