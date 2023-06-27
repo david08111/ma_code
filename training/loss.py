@@ -92,7 +92,7 @@ class Loss_Wrapper():
             return pymetricl_losses.AngularLoss(**loss_config)
 
         elif loss_type == "circle_loss":
-            return pymetricl_losses.ArcFaceLoss(**loss_config)
+            return pymetricl_losses.CircleLoss(**loss_config)
 
         elif loss_type == "arcface_loss":
             return pymetricl_losses.ArcFaceLoss(**loss_config)
@@ -104,7 +104,7 @@ class Loss_Wrapper():
             return pymetricl_losses.ContrastiveLoss(**loss_config)
 
         elif loss_type == "cosface_loss":
-            return pymetricl_losses.ArcFaceLoss(**loss_config)
+            return pymetricl_losses.CosFaceLoss(**loss_config)
 
         elif loss_type == "lifted_structure_loss":
             return pymetricl_losses.LiftedStructureLoss(**loss_config)
@@ -4284,12 +4284,20 @@ class MetricLearningSemSegmLoss(nn.Module):
     def set_params(self, params_dict):
         if params_dict["General_loss_type"] == type(self):
             if params_dict["class_metric_loss_type"] == type(self.class_metric_loss):
-                self.class_metric_loss.W = params_dict["class_metric_loss_param_W"]
+                if getattr(self.class_metric_loss, "W", None):
+                    self.class_metric_loss.W = params_dict["class_metric_loss_param_W"]
+
 
     def get_params(self):
-        return {"General_loss_type": type(self),
-            "class_metric_loss_type": type(self.class_metric_loss),
-            "class_metric_loss_param_W": self.class_metric_loss.W}
+        params_dict = {"General_loss_type": type(self),
+            "class_metric_loss_type": type(self.class_metric_loss)}
+
+        W_params = getattr(self.class_metric_loss, "W", None)
+        # test = type(W_params)
+        if type(W_params) == type(nn.Parameter):
+            params_dict["class_metric_loss_param_W"] = self.class_metric_loss.W
+
+        return params_dict
 
 # WIP
 class MetricLearningPanopticSegmLoss(nn.Module):

@@ -99,6 +99,9 @@ class Net_trainer():
             # first_run = True
         self.latest_state_path = latest_state_path
 
+        if self.start_epoch > 30:
+            self.optimizer.warmup = False
+
         if latest_state_path:
             # state = torch.load(os.path.abspath(latest_state_path))
             self.load_checkpoint(net, latest_state_path)

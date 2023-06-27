@@ -377,7 +377,7 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
 
                     # final_embedding = final_embedding[:, :int(final_embedding.shape[1] / 8),
                     #                   :int(final_embedding.shape[2] / 8)]
-                    final_embedding = final_embedding.reshape(-1, final_embedding.shape[0])
+                    final_embedding = final_embedding.reshape(final_embedding.shape[0], -1)
                     # data_pts_names = data_pts_names[b, 0, :, :].cpu().detach().numpy()
                     # data_pts_names = data_pts_names[:int(data_pts_names.shape[0] / 8),
                     #                  :int(data_pts_names.shape[1] / 8)]
@@ -385,8 +385,8 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
                     # data_pts_names_segment_ids = data_pts_names[0, ...]
                     # data_pts_names_cat_ids = data_pts_names[1, ...]
 
-                    data_pts_names_segment_ids = data_pts_names.flatten()
-                    data_pts_names_cat_ids = data_pts_names.flatten()
+                    data_pts_names_segment_ids = data_pts_names[0, :, :].flatten()
+                    data_pts_names_cat_ids = data_pts_names[1, :, :].flatten()
 
                 data_pts_names_segment_ids = data_pts_names_segment_ids.tolist()
                 data_pts_names_cat_ids = data_pts_names_cat_ids.tolist()
