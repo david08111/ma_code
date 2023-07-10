@@ -40,6 +40,7 @@ class Loss_Wrapper():
 
         # hierarchical_cluster_mean_mov_avg_update_contrast
         # calculation of batch mean ->  hinged mse of L2/L1 of each embedding with its mean -> hinged mse of L2/L1 of all mean emb combinations
+        # current_batch_mean * factor + epoch_mean * (1-factor)
         elif loss_type == "hierarchical_cluster_mean_mov_avg_update_contrast":
             return Hierarchical_cluster_mean_mov_avg_update_contrast_loss(**loss_config)
 
@@ -116,7 +117,7 @@ class Loss_Wrapper():
             return pymetricl_losses.IntraPairVarianceLoss(**loss_config)
 
         elif loss_type == "large_margin_softmax_loss":
-            return pymetricl_losses.LargeMarginSoftmax(**loss_config)
+            return pymetricl_losses.LargeMarginSoftmaxLoss(**loss_config)
 
         elif loss_type == "manifold_loss":
             return pymetricl_losses.ManifoldLoss(**loss_config)
