@@ -1,0 +1,25 @@
+#Dataset reference file containing file paths to potentially multiple datasets for Panoptic Segmentation in the COCO format - png segmentation masks
+pred_set:
+  settings:
+    unify: false  # for unification of different dataset types
+  sets:
+    train_set1:
+      dataset_name: cityscapes_gtFine_train
+      dataset_type: cityscapes
+      img_data_path: /work/scratch/dziuba/datasets/Cityscapes_test_bigger/Cityscapes_org/leftImg8bit/train
+      segment_info_file_path: /work/scratch/dziuba/datasets/Cityscapes_test_bigger/Cityscapes_COCO/gtFine/gtFine_train.json
+      segment_masks_path: /work/scratch/dziuba/datasets/Cityscapes_test_bigger/Cityscapes_COCO/gtFine/train
+#      dataset_name: cityscapes_gtFine_train
+#      dataset_type: cityscapes
+#      img_data_path: /work/scratch/dziuba/datasets/Cityscapes_test/Cityscapes_org/leftImg8bit/train
+#      segment_info_file_path: /work/scratch/dziuba/datasets/Cityscapes_test/Cityscapes_COCO/gtFine/gtFine_train.json
+#      segment_masks_path: /work/scratch/dziuba/datasets/Cityscapes_test/Cityscapes_COCO/gtFine/train
+
+metrics:
+  metrics_eval_list:
+    - panoptic_quality:
+        filter: None
+    - silhouette_score:
+        sampler:
+          nthstep:
+            step_size: [5, 5]

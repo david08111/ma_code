@@ -179,7 +179,7 @@ loss:
 
 
 data:
-  datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref_debug_bigger.yaml"
+  datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref_debug.yaml"
   batch_size: 2
   num_workers: 2
   prefetch_factor: 4 # currently deprecated

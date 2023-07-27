@@ -296,7 +296,7 @@ class MultiSphereAssociator():
 
                         segm_info.append({"id": int(segment_id),
                                           "category_id": int(cat_id),
-                                          "area": area})
+                                          "area": int(area)})
                         # "area": area,
                         # "bbox": bbox,
                         # "iscrowd": is_crowd})
@@ -496,7 +496,7 @@ class MultiSphereAssociatorFlexible():
 
                         segm_info.append({"id": int(segment_id),
                                           "category_id": int(cat_id),
-                                          "area": area})
+                                          "area": int(area)})
                         # "area": area,
                         # "bbox": bbox,
                         # "iscrowd": is_crowd})
@@ -772,7 +772,7 @@ class NearestClassMeanAssociator():
 
                         segm_info.append({"id": int(segment_id),
                                           "category_id": int(cat_id),
-                                          "area": area})
+                                          "area": int(area)})
                         # "area": area,
                         # "bbox": bbox,
                         # "iscrowd": is_crowd})

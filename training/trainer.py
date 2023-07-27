@@ -297,7 +297,7 @@ class Net_trainer():
 
                 auxiliary_output_list = net.create_auxiliary_output_from_embeddings(outputs, self.dataset_category_dict["train_loader"], annotations_data, embedding_handler=self.embedding_handler)
                 for key in self.criterions["criterion_metrics"].keys():
-                    self.criterions["criterion_metrics"][key].metric(final_outputs, masks, final_output_segmentation_data, annotations_data, categories=self.dataset_category_dict["train_loader"])
+                    self.criterions["criterion_metrics"][key].metric(outputs, final_outputs, masks, final_output_segmentation_data, annotations_data, categories=self.dataset_category_dict["train_loader"])
 
                 if self.train_logger:
                     for elem in auxiliary_output_list:
@@ -405,7 +405,7 @@ class Net_trainer():
                                                                                             "val_loader"],
                                                                                         annotations_data, embedding_handler=self.embedding_handler)
                     for key in self.criterions["criterion_metrics"].keys():
-                        self.criterions["criterion_metrics"][key].metric(final_outputs, masks,
+                        self.criterions["criterion_metrics"][key].metric(outputs, final_outputs, masks,
                                                                          final_output_segmentation_data,
                                                                          annotations_data,
                                                                          categories=self.dataset_category_dict[

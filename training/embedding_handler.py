@@ -636,13 +636,26 @@ class BatchSampler():
         #     pass
         pos_embeds = pos_embeds[:, torch.randint(0, pos_embeds.shape[1], (num_pos_embeds,))]
 
-        neg_embeds = torch.cat([batch_embeds[tmp_cat_id][b] for tmp_cat_id in batch_embeds.keys() if tmp_cat_id != cat_id for b in range(len(batch_embeds[cat_id])) if batch_embeds[tmp_cat_id][b].shape[1] != 0], dim=1)
+        neg_embeds_list = []
+        neg_embeds_cls_labels_list = []
+        for tmp_cat_id in batch_embeds.keys():
+            if tmp_cat_id != cat_id:
+                for b in range(len(batch_embeds[cat_id])):
+                    if batch_embeds[tmp_cat_id][b].shape[1] != 0:
+                        neg_embeds_list.append(batch_embeds[tmp_cat_id][b])
+                        neg_embeds_cls_labels_list += [tmp_cat_id] * batch_embeds[tmp_cat_id][b].shape[1]
+
+        # neg_embeds = torch.cat([batch_embeds[tmp_cat_id][b] for tmp_cat_id in batch_embeds.keys() if tmp_cat_id != cat_id for b in range(len(batch_embeds[cat_id])) if batch_embeds[tmp_cat_id][b].shape[1] != 0], dim=1)
+        neg_embeds = torch.cat(neg_embeds_list, dim=1)
+        neg_embeds_labels = torch.tensor(neg_embeds_cls_labels_list, dtype=torch.int, device=neg_embeds.device)
         num_neg_embeds = min(num_neg_embeds, neg_embeds.shape[1])
-        neg_embeds = neg_embeds[:, torch.randint(0, neg_embeds.shape[1] - 1, (num_neg_embeds,))]
+        neg_embeds_select_indx = torch.randint(0, neg_embeds.shape[1] - 1, (num_neg_embeds,))
+        neg_embeds = neg_embeds[:, neg_embeds_select_indx]
+        neg_embeds_labels = neg_embeds_labels[neg_embeds_select_indx]
 
 
         # neg_embeds = neg_embeds.to(device, non_blocking=True)
-        return pos_embeds, neg_embeds
+        return pos_embeds, neg_embeds, neg_embeds_labels
 
     def _sample_embeddings_from_storage(self, cat_id, embedding_storage, num_embedding_storage_samples):
         return None

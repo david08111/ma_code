@@ -1,198 +1,251 @@
-import argparse
 import torch
-from torch.utils.data import DataLoader
-from utils import Config
+import argparse
 import os
-import time
-from tqdm import tqdm
+import sys
+import json
 import cv2
 import numpy as np
+from shutil import copyfile
 from matplotlib import pyplot as plt
-from data_handling import DataHandler
-from utils import Evaluation_Logger
-from training import Metrics_Wrapper, Loss_Wrapper
+from tqdm import tqdm
+from utils import Config, create_config_dict, update_config_dict, create_visualization_panopticapi
+from data_handling import DataHandler, DataHandlerPlainImages, custom_collate_fn, custom_collate_fn2, custom_collate_plain_images
+from training import Metrics_Wrapper, EmbeddingHandler, EmbeddingHandlerDummy, Loss_Wrapper, Net_trainer
+from models import Model
+from torch.utils.data import DataLoader
 
 
-def evaluate(in_path, out_path, weight_file, config_file):
+
+
+def predict_and_eval(visualize, dataset_cfg_path, out_path, weight_file, config_path, copy):
+    ##########
+    torch.manual_seed(10)
+    torch.backends.cudnn.benchmark = True
+    # torch.cuda.memory.change_current_allocator(rmm.rmm_torch_allocator)
+    ############
     config = Config()
-    config_dict = config(os.path.abspath(config_file))
+    eval_config_dict = config(os.path.abspath(dataset_cfg_path))
 
-    eval_logger = Evaluation_Logger(out_path)
+    ## dataset_config
+    # dataset_config_dict = config(os.path.abspath(config_dict["data"]["datasets_file_path"]))
 
-    net = Model(config_dict["network"]["architecture"], config_dict["network"]["in_channels"],
-                config_dict["network"]["classes"], config_dict["data"]["img_size"], config_dict["network"]["architecture_config"])
+    config_dict = create_config_dict(os.path.abspath(config_path))
 
-    net.eval()
+    config_dict["data"]["datasets_split"] = {"pred_set": eval_config_dict["pred_set"]}
 
-    total_net_params = sum(p.numel() for p in net.model.parameters())
+    config_dict["data"]["load_ram"] = False
+
+    config_dict["loss"]["metrics"] = eval_config_dict["metrics"]["metrics_eval_list"]
+
+    use_cpp = config_dict["training"]["use_cpp"]
+
+    use_amp = False
+    if "AMP" in config_dict["training"]:
+        use_amp = config_dict["training"]["AMP"]
+
+    if use_cpp:
+        amp_device = "cpu"
+    else:
+        amp_device = "cuda"
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    model = Model(config_dict)
+    # device = torch.device("cpu")
+
+    model.to(device)
+
+    model.eval()
 
     state = torch.load(os.path.abspath(weight_file))
 
-    try:
-        net.model.load_state_dict(state["state_dict"]["model"])
-    except KeyError:
-        try:
-            net.model.load_state_dict(state["model"])
-        except KeyError:
-            net.model.load_state_dict(state)
+    model.model.load_state_dict(state["model"])
 
-    use_cuda = torch.cuda.is_available()
-    device = torch.device("cuda" if use_cuda else "cpu")
 
-    net.to(device)
+    # dataset_segment_info = None
+    #
+    # dataset_split_dict_path = config_dict["data"]["datasets_split"]["train_set"]["sets"]
+    # set_name = list(dataset_split_dict_path.keys())[0]
+    # dataset_segment_info_path = dataset_split_dict_path[set_name]["segment_info_file_path"]
+    #
+    # with open(dataset_segment_info_path, 'r') as f:
+    #     dataset_segment_info = json.load(f)
+    #
+    # dataset_category_dict = dataset_segment_info["categories"]
+    # dataset_category_id_dict = {el['id']: el for el in dataset_category_dict}
 
-    # data = {
-    #     "pred_loader": DataLoader(
-    #         dataset=DataHandler(in_path, config_dict["data"]["img_size"],
-    #                             config_dict["data"]["img_size"], config_dict["network"]["in_channels"], device,
-    #                             rotation=0, translation=0, scaling=0, hor_flip=False, ver_flip=False,
-    #                             config_data=config_dict["data"]),
-    #         batch_size=1, shuffle=False, num_workers=config_dict["data"]["num_workers"], drop_last=False,
-    #         pin_memory=True)
-    # }
-    data = {
-        "pred_loader": DataLoader(
-            dataset=DataHandler(in_path, config_dict["data"]["img_size"],
-                                config_dict["data"]["img_size"], config_dict["network"]["in_channels"], device,
-                                rotation=0, translation=0, scaling=0, hor_flip=False, ver_flip=False,
-                                config_data=config_dict["data"]),
-            batch_size=1, shuffle=False, num_workers=config_dict["data"]["num_workers"], drop_last=False,
-            pin_memory=True)
-    }
+    # embedding_handler_config = config_dict["training"]["embedding_handler"]
+    # embedding_handler = EmbeddingHandler(embedding_handler_config["embedding_storage"],
+    #                                      embedding_handler_config["embedding_sampler"],
+    #                                      embedding_handler_config["storage_step_update_sample_size"],
+    #                                      dataset_category_id_dict,
+    #                                      model.model_architecture_embedding_dims, device)
+    # embedding_handler.load_state_dict(state["embedding_handler"])
 
     criterions = {
-        "criterion_metrics": {key: Metrics_Wrapper(config_dict["data"]["metrics"][key]) for key in
-                              config_dict["data"]["metrics"]}
+        "criterion_metrics": {list(metric_elem_dict.keys())[0]: Metrics_Wrapper(metric_elem_dict) for metric_elem_dict
+                              in config_dict["loss"]["metrics"]}
     }
 
-    metric_threshold_step_sizes = []
-    metric_num_thresholds = []
-    for metric in criterions["criterion_metrics"]:
-        if "num_thresholds" in criterions["criterion_metrics"][metric].metric_config.keys():
-            metric_num_thresholds.append(criterions["criterion_metrics"][metric].metric_config["num_thresholds"])
+    augmentations = {}
+    for key in config_dict["data"]["augmentations"]["transformations"].keys():
+        if "crop" in key:
+            augmentations = dict(config_dict["data"]["augmentations"])
+            augmentations["transformations"] = {key: augmentations["transformations"][key]}
 
-    if all(num_threshold == metric_num_thresholds[0] for num_threshold in metric_num_thresholds):
-        common_num_threshold = metric_num_thresholds[0]
-    else:
-        common_num_threshold = metric_num_thresholds[0]
-        print(
-            "Different num thresholds for classification detected. Num threshold: " + common_num_threshold + " is used")
+    config_dict["data"]["augmentations"]["transformations"] = augmentations
 
-    for metric in criterions["criterion_metrics"]:
-        if "accuracy" in criterions["criterion_metrics"][metric].metric_type or "precision" in \
-                criterions["criterion_metrics"][metric].metric_type or "recall" in \
-                criterions["criterion_metrics"][metric].metric_type or "f1_score" in \
-                criterions["criterion_metrics"][metric].metric_type or "false_pos_rate" in \
-                criterions["criterion_metrics"][metric].metric_type:
-            criterions["criterion_metrics"]["metric_additional"] = {
-                "threshold_" + str(threshold): Metrics_Wrapper({"metric_type": "class_cases",
-                                                                "threshold": threshold}) for threshold in
-                np.arange(0, 1, 1 / common_num_threshold)}
-            break
+    ###
 
-    metrics_sum = {}
-    eval_metrics = {}
-    for metric in criterions["criterion_metrics"]:
-        if metric != "metric_additional":
-            if criterions["criterion_metrics"][metric].metric_type != "accuracy" and \
-                    criterions["criterion_metrics"][metric].metric_type != "precision" and \
-                    criterions["criterion_metrics"][metric].metric_type != "recall" and \
-                    criterions["criterion_metrics"][metric].metric_type != "f1_score" and \
-                    criterions["criterion_metrics"][metric].metric_type != "false_pos_rate":
-                metrics_sum[metric] = 0
-        else:
-            for threshold in criterions["criterion_metrics"][metric]:
-                metrics_sum[threshold] = 0
+    data = {
+        "pred_loader": DataLoader(
+            dataset=DataHandler(config_dict["data"]["datasets_split"]["pred_set"], config_dict, device),
+            batch_size=1, shuffle=False,
+            num_workers=config_dict["data"]["num_workers"], drop_last=False, pin_memory=True,
+            collate_fn=custom_collate_fn2)
+    }
 
-    predict_time_net_sum = 0
+    dataset_category_dict = data["pred_loader"].dataset.dataset_cls_list[0].categories_id
+
+    # img_path =
+
+    embedding_handler_config = None
+    embedding_handler = EmbeddingHandlerDummy()
+    if "embedding_handler" in config_dict["training"].keys():
+        embedding_handler_config = config_dict["training"]["embedding_handler"]
+
+        embedding_handler = EmbeddingHandler(embedding_handler_config["embedding_storage"],
+                                             embedding_handler_config["embedding_sampler"],
+                                             embedding_handler_config["storage_step_update_sample_size"],
+                                             dataset_category_dict,
+                                             model.model_architecture_embedding_dims, device)
+        embedding_handler.load_state_dict(state["embedding_handler"])
+
+    output_annotations = {
+        "images": [],
+        "annotations": [],
+        "categories": dataset_category_dict
+    }
 
     with torch.no_grad():
 
-        for batch_id, datam in enumerate(tqdm(data["pred_loader"], desc="Predict")):
+        if visualize:
+            pred_path = os.path.join(os.path.abspath(out_path), "pred")
+            vis_path = os.path.join(os.path.abspath(out_path),
+                                    "visualization")
+            os.makedirs(vis_path, exist_ok=True)
+        else:
+            pred_path = os.path.abspath(out_path)
 
-            [inputs, labels, input_file_name, label_file_name] = datam
+        os.makedirs(pred_path, exist_ok=True)
+
+
+        for batch_id, datam in enumerate(tqdm(data["pred_loader"], desc="Prediction",  file=sys.stdout)):
+            # [inputs, file_paths] = datam
+            #
+            # file_name = os.path.basename(file_paths[0])
+            # fname = file_name.rsplit(".", 1)[0]
+            # fname = fname.rsplit("_leftImg8bit")[0]
+
+            [inputs, masks, annotations_data] = datam
+
+            fname = annotations_data[0]["image_id"]
+            file_name = fname + "_leftImg8bit.png"
 
             inputs = inputs.to(device, non_blocking=True)
-            labels = labels.to(device, non_blocking=True)
-            labels = labels.narrow(3, 0, 1).contiguous()
-
-            start_pred_time_net = time.time()
-            outputs = net.model(inputs)
-            end_pred_time_net = time.time()
-
-            predict_time_net_sum += (end_pred_time_net - start_pred_time_net)
+            masks = masks.to(device, non_blocking=True)
 
 
-            for metric in metrics_sum:
-                # if metric != "accuracy" and metric != "precision" and metric != "recall" and metric != "f1_score" and metric != "false_pos_rate":
-                if "threshold" not in metric:
-                    metrics_sum[metric] += criterions["criterion_metrics"][metric].metric(outputs, labels)
-                else:
-                    metrics_sum[metric] += criterions["criterion_metrics"]["metric_additional"][metric].metric(outputs, labels)
+            # inputs = inputs.permute((0, 3, 2, 1))
 
+            with torch.autocast(device_type=amp_device, enabled=use_amp):
+                outputs, output_items = model(inputs)
 
-    predict_time_net_sum /= batch_id
+            # annotations_data = [{"image_id": fname}]
 
-    for metric in metrics_sum:
-        metrics_sum[metric] /= len(data["train_loader"])
+            final_outputs, final_output_segmentation_data = model.create_output_from_embeddings(outputs, [dataset_category_dict], annotations_data,
+                                                                                              embedding_handler=embedding_handler)
 
-    for metric in criterions["criterion_metrics"]:
-        if metric != "metric_additional":
-            if criterions["criterion_metrics"][metric].metric_type != "accuracy" and \
-                    criterions["criterion_metrics"][metric].metric_type != "precision" and \
-                    criterions["criterion_metrics"][metric].metric_type != "recall" and \
-                    criterions["criterion_metrics"][metric].metric_type != "f1_score" and \
-                    criterions["criterion_metrics"][
-                        metric].metric_type != "false_pos_rate" and metric != "metric_additional":
-                eval_logger.add_item(criterions["criterion_metrics"][metric].metric_type,
-                                           metrics_sum[metric])
-            else:
-                eval_metrics[criterions["criterion_metrics"][metric].metric_type] = {
-                    criterions["criterion_metrics"]["metric_additional"][threshold].metric_config[
-                        "threshold"]: Metrics_Wrapper(
-                        {"metric_type": criterions["criterion_metrics"][metric].metric_type, "threshold":
-                            criterions["criterion_metrics"]["metric_additional"][threshold].metric_config[
-                                "threshold"]}).metric.calc(metrics_sum[threshold]) for threshold in
-                    criterions["criterion_metrics"]["metric_additional"]}
+            for key in criterions["criterion_metrics"].keys():
+                criterions["criterion_metrics"][key].metric(outputs, final_outputs, masks,
+                                                                 final_output_segmentation_data, annotations_data,
+                                                                 categories=[dataset_category_dict])
 
-    if eval_metrics:
-        for metric in eval_metrics:
-            sorted_metric_list = sorted(eval_metrics[metric].items())
-            plot_metric_x, plot_metric_y = zip(*sorted_metric_list)
-            eval_logger.add_item(metric + "_plot", {"threshold": plot_metric_x, metric: plot_metric_y})
+            final_output_segmentation_data[0]["file_name"] = fname + "_instanceIds.png"
+            output_annotations["images"].append({
+                "id": final_output_segmentation_data[0]["image_id"],
+                "width": final_outputs.shape[2],
+                "height": final_outputs.shape[3],
+                "file_name": file_name
+            })
+            output_annotations["annotations"].append(final_output_segmentation_data[0])
+            # test = inputs.cpu().detach().numpy()
+            # plt.imshow(test[0])
+            # plt.show()
 
-        if "precision" in eval_metrics.keys() and "recall" in eval_metrics.keys():
-            sorted_precision_list = sorted(eval_metrics["precision"].items())
-            thresholds, precision = zip(*sorted_precision_list)
+            # inputs = inputs.cpu().detach().numpy()
+            final_outputs = final_outputs.cpu().detach().numpy()
+            # plt.imshow(final_outputs[0])
+            # plt.show()
 
-            sorted_recall_list = sorted(eval_metrics["recall"].items())
-            thresholds, recall = zip(*sorted_recall_list)
+            save_path = os.path.join(out_path, "pred", final_output_segmentation_data[0]["file_name"])
+            # cv2.imwrite(save_path, final_outputs[0])
+            final_outputs = np.moveaxis(final_outputs[0], 0, 2)
+            # final_outputs = np.moveaxis(final_outputs, 0, 1)
+            # final_outputs = final_outputs[0]
+            cv2.imwrite(save_path, cv2.cvtColor(final_outputs, cv2.COLOR_RGB2BGR))
+            # cv2.imwrite(save_path, final_outputs)
+            # if copy:
+            #     copyfile(os.path.join(in_path, file_name), os.path.join(pred_path, file_name))
 
-            eval_logger.add_item("pr_curve", {"recall": recall, "precision": precision})
+    for key in criterions["criterion_metrics"].keys():
+        criterions["criterion_metrics"][key].metric.process_end_batch(categories=[dataset_category_dict])
 
-        if "recall" in eval_metrics.keys() and "false_pos_rate" in eval_metrics.keys():
-            sorted_tpr_list = sorted(eval_metrics["recall"].items())
-            thresholds, true_pos_rate = zip(*sorted_tpr_list)
+    img_in_path = None
 
-            sorted_fpr_list = sorted(eval_metrics["false_pos_rate"].items())
-            thresholds, false_pos_rate = zip(*sorted_fpr_list)
+    for key in data["pred_loader"].dataset.dataset_config_set["sets"]:
+        img_in_path = data["pred_loader"].dataset.dataset_config_set["sets"][key]["img_data_path"]
 
-            eval_logger.add_item("roc_curve", {"false_pos_rate": false_pos_rate, "true_pos_rate": true_pos_rate})
+    if visualize:
+        categories_list = [dataset_category_dict[cat_id] for cat_id in dataset_category_dict]
+        output_annotations["categories"] = categories_list
 
-    eval_logger.add_item("model_param_size", total_net_params)
-    eval_logger.add_item("avg_pred_time", predict_time_net_sum)
+        vis_imgs_dict = create_visualization_panopticapi(output_annotations, pred_path, img_in_path)
 
-    eval_logger.flush()
+        for vis_file_name in vis_imgs_dict.keys():
+            cv2.imwrite(os.path.join(vis_path, vis_file_name), cv2.cvtColor(vis_imgs_dict[vis_file_name], cv2.COLOR_RGB2BGR))
 
+    ### convert area in segment list to python int otherwise not serializeable to json
+
+    for elem in output_annotations["annotations"]:
+        for segment in elem["segments_info"]:
+            segment["area"] = int(segment["area"])
+
+    with open(os.path.join(out_path, "annotations_data.json"), 'w') as f:
+        json.dump(output_annotations, f)
+
+    output_metrics_dict = {}
+    for key in criterions["criterion_metrics"].keys():
+        output_metrics_dict[key] = criterions["criterion_metrics"][key].get_metric_dict()
+
+    with open(os.path.join(out_path, "metrics.json"), 'w') as f:
+        json.dump(output_metrics_dict, f)
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("-p", "--in_path_pred", type=str, help="Input Prediction Data Dir")
-    parser.add_argument("-ǵ", "--in_path_gt", type=str, help="Input Groundtruth Data Dir")
+    parser.add_argument("-v", "--visualize", action="store_true",
+                        help="If Flag is specified, results will be plotted")
+    parser.add_argument("-d", "--dataset_cfg_path", type=str, help="File to Datasets config file path")
+    # parser.add_argument("-s", "--in_path", type=str, help="Input Data Dir")
     parser.add_argument("-s", "--out_path", default="./outputs", type=str,
                         help="Output Data Dir")
-
+    parser.add_argument("-w", "--weight_file", type=str, help="Model Weights")
+    # parser.add_argument("-t", "--threshold", type=str, help="threshold for classification")
+    parser.add_argument("-c", "--config_file", type=str, help="Configuration")
+    parser.add_argument("-cp", "--copy", action="store_true",
+                        help="Select if images get copied")
 
     args = parser.parse_args()
 
-    evaluate(args.in_path, args.out_path, args.weight_file, args.config_file)
+    predict_and_eval(args.visualize, args.dataset_cfg_path, args.out_path, args.weight_file, args.config_file, args.copy)

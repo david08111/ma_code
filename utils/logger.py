@@ -368,8 +368,8 @@ class TrainLogger(): # Wrapper for Logging to txt + TensorBoard + Wandb
                 no_embedding_samples = reduce(lambda x, y: x*y, list(final_embedding[0, ...].shape))
 
                 if no_embedding_samples > self.embedding_max_sample_size:
-                    final_embedding = self.sampler.sample(final_embedding)
-                    data_pts_names = self.sampler.sample(data_pts_names)
+                    final_embedding, sampling_indices = self.sampler.sample(final_embedding)
+                    data_pts_names, sampling_indices = self.sampler.sample(data_pts_names)
 
                     data_pts_names_segment_ids = data_pts_names[0, ...]
                     data_pts_names_cat_ids = data_pts_names[1, ...]

@@ -34,7 +34,7 @@ class NthStepSampler():
             column_sample_indices_final = column_sample_indices_final + ([column_sample_indices[i]] * len(row_sample_indices))
         row_sample_indices_final = row_sample_indices * len(column_sample_indices)
 
-        return input[:, row_sample_indices_final, column_sample_indices_final]
+        return input[:, row_sample_indices_final, column_sample_indices_final], (row_sample_indices_final, column_sample_indices_final)
 
 class MaxNumStepSampler():
     def __init__(self, max_steps=[150, 150]):
@@ -49,13 +49,16 @@ class MaxNumStepSampler():
             column_sample_indices_final = column_sample_indices_final + ([column_sample_indices[i]] * len(row_sample_indices))
         row_sample_indices_final = row_sample_indices * len(column_sample_indices)
 
-        return input[:, row_sample_indices_final, column_sample_indices_final]
+        return input[:, row_sample_indices_final, column_sample_indices_final], (row_sample_indices_final, column_sample_indices_final)
 
 class RangeSampler():
     def __init__(self, ranges=[[0, 150], [0, 150]]):
         self.ranges = ranges
     def sample(self, input):
-        return input[:, self.ranges[0][0]:self.ranges[0][1], self.ranges[1][0]:self.ranges[1][1]]
+        row_sample_indices_final = list(range(self.ranges[0][0], self.ranges[0][1]))
+        column_sample_indices_final = list(range(self.ranges[1][0], self.ranges[1][1]))
+
+        return input[:, self.ranges[0][0]:self.ranges[0][1], self.ranges[1][0]:self.ranges[1][1]], (row_sample_indices_final, column_sample_indices_final)
 
 # specify/create detailed version of clustersampler related to used clustering algorithm e.g. KMeansSampler
 class ClusterSampler():

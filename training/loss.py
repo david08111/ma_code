@@ -1,3 +1,4 @@
+import sklearn.metrics
 import torch
 import torch.nn as nn
 import torch.nn.modules as nn_modules
@@ -5,8 +6,10 @@ import torch.nn.functional as F
 import numpy as np
 import sys
 import logging
+import sklearn
 import time
 import random
+from utils.sampler import SamplerWrapper
 from .metrics_new import pq_compute_custom, PQStat
 from pytorch_metric_learning import losses as pymetricl_losses
 
@@ -266,8 +269,172 @@ class Metrics_Wrapper():
             return Recognition_Quality(**metric_config)
         elif metric_name == "segmentation_quality":
             return Segmentation_Quality(**metric_config)
+
+        elif metric_name == "silhouette_score":
+            return Silhouette_Score(**metric_config)
         # elif metric_type == "confusion_matrix":
         #     raise NotImplementedError
+
+    def get_metric_dict(self):
+        return self.metric.get_metric_dict()
+
+class Silhouette_Score(nn.Module):
+    def __init__(self, filter=None, *args, **kwargs):
+        super().__init__()
+        self.filter = filter
+        if "sampler" in kwargs:
+            sampler_name = list(kwargs["sampler"].keys())[0]
+            sampler_config = kwargs["sampler"][sampler_name]
+            self.sampler = SamplerWrapper(sampler_name, sampler_config)
+        else:
+            self.sampler = None
+
+        self.metric_tmp_dict = None
+        self.metric = {"All": 0,
+                       "Stuff": 0,
+                       "Things": 0,
+                       "Class": {},
+                       "Things_Semantic": {},
+                       "Things_Instance": {}}
+        self.categories_dict = None
+
+    def reset(self):
+        self.metric_tmp_dict = None
+        self.metric = None
+
+    def forward(self, output_embeds, output_img, mask_img, pred_data_dict, gt_data_dict, categories, *args, **kwargs):
+        if all(x == categories[0] for x in categories):
+            categories = categories[0]
+        else:
+            raise ValueError(
+                "Implementation doesnt support multiple dataset category associations!")  # conversion to unified categories should work
+
+        if not self.metric_tmp_dict:
+            self.categories_dict = categories
+            self.metric_tmp_dict = {}
+            for cat_id in categories.keys():
+                if categories[cat_id]["isthing"]:
+                    self.metric_tmp_dict[cat_id] = {
+                        "cls_score": 0,
+                        "inst_score": 0,
+                        "view_count": 0
+                    }
+                else:
+                    self.metric_tmp_dict[cat_id] = {
+                        "cls_score": 0,
+                        "view_count": 0
+                    }
+                # self.metric_tmp_dict[cat_id]["cls_score"] = 0
+                # self.metric_tmp_dict[cat_id]["inst_score"] = 0
+                # self.metric_tmp_dict[cat_id]["view_count"] = 0
+
+        outputs_reordered_tmp = torch.permute(output_embeds, (1, 0, 2, 3))
+        masks_reordered_tmp = torch.permute(mask_img, (1, 0, 2, 3))
+
+        output_embeds_tmp = outputs_reordered_tmp.detach().cpu().numpy()
+        mask_img_tmp = masks_reordered_tmp.detach().cpu().numpy()
+
+        if self.sampler:
+            sampled_output_embeds_del, sampling_indices = self.sampler.sample(output_embeds_tmp[:, 0, :, :])
+            output_embeds_tmp = output_embeds_tmp[:, :, sampling_indices[0], sampling_indices[1]]
+            mask_img_tmp = mask_img_tmp[:, :, sampling_indices[0], sampling_indices[1]]
+
+        # outputs_reordered_tmp = torch.permute(output_embeds_tmp, (1, 0, 2, 3))
+        # masks_reordered_tmp = torch.permute(mask_img_tmp, (1, 0, 2, 3))
+
+
+        # mask_labels = masks_reordered_tmp.view(masks_reordered_tmp.shape[0], -1).detach().cpu().numpy()
+
+        # randomlist = random.sample(range(0, mask_labels.shape[1]), 100000)
+
+        mask_labels = mask_img_tmp.reshape(mask_img_tmp.shape[0], -1)
+
+        # cat_id_labels = mask_labels[1, :][randomlist]
+        cat_id_labels = mask_labels[1, :]
+        segment_id_labels = mask_labels[0, :]
+        # embedding_samples = outputs_reordered_tmp.view(outputs_reordered_tmp.shape[0], -1).T.detach().cpu().numpy()[randomlist, :]
+        # embedding_samples = outputs_reordered_tmp.view(outputs_reordered_tmp.shape[0], -1).T.detach().cpu().numpy()
+        embedding_samples = output_embeds_tmp.reshape(output_embeds_tmp.shape[0], -1).T
+        unique_cat_ids = np.unique(cat_id_labels)
+
+        # Silhouette score per class
+
+
+        silhouette_sample_scores = sklearn.metrics.silhouette_samples(embedding_samples, cat_id_labels)  # (#samples, #feature_dims), (#samples)
+
+        for unique_cat_id in unique_cat_ids[1:]:  # skip 0
+            unique_cat_id = int(unique_cat_id.item())
+
+            outputs_cat_id_indx_select = cat_id_labels == unique_cat_id
+
+            cat_id_silhouette_scores = silhouette_sample_scores[outputs_cat_id_indx_select]
+            silhouette_sample_scores_cat_id = np.mean(cat_id_silhouette_scores)
+
+            self.metric_tmp_dict[unique_cat_id]["cls_score"] += silhouette_sample_scores_cat_id
+
+            self.metric_tmp_dict[unique_cat_id]["view_count"] += 1
+
+            if categories[unique_cat_id]["isthing"]:
+                class_segment_id_labels = segment_id_labels[outputs_cat_id_indx_select]
+                class_embedding_samples = embedding_samples[outputs_cat_id_indx_select, :]
+
+                unique_segment_ids = np.unique(class_segment_id_labels)
+
+                silhouette_score_segment_ids_mean = None
+
+                if len(unique_segment_ids) > 1:
+                    silhouette_score_segment_ids = sklearn.metrics.silhouette_samples(class_embedding_samples, class_segment_id_labels)
+
+                    silhouette_score_segment_ids_mean = np.mean(silhouette_score_segment_ids)
+                else:
+                    silhouette_score_segment_ids_mean = silhouette_sample_scores_cat_id
+
+                self.metric_tmp_dict[unique_cat_id]["inst_score"] += silhouette_score_segment_ids_mean
+
+
+
+
+    def process_end_batch(self, *args, **kwargs):
+
+        num_thing_classes = 0
+        num_stuff_classes = 0
+        for cat_id in self.metric_tmp_dict:
+            if self.categories_dict[cat_id]["isthing"]:
+                num_thing_classes += 1
+                if self.metric_tmp_dict[cat_id]["view_count"] != 0:
+                    self.metric_tmp_dict[cat_id]["inst_score"] /= self.metric_tmp_dict[cat_id]["view_count"]
+                    self.metric_tmp_dict[cat_id]["cls_score"] /= self.metric_tmp_dict[cat_id]["view_count"]
+                else:
+                    self.metric_tmp_dict[cat_id]["inst_score"] = 0
+                    self.metric_tmp_dict[cat_id]["cls_score"] = 0
+
+                self.metric["Things_Instance"][cat_id] = self.metric_tmp_dict[cat_id]["inst_score"]
+                self.metric["Things_Semantic"][cat_id] = self.metric_tmp_dict[cat_id]["cls_score"]
+
+                self.metric["Class"][cat_id] = 0.5 * (self.metric["Things_Instance"][cat_id] + self.metric["Things_Semantic"][cat_id])
+                self.metric["Things"] += self.metric["Class"][cat_id]
+
+            else:
+                num_stuff_classes += 1
+
+                if self.metric_tmp_dict[cat_id]["view_count"] != 0:
+                    self.metric_tmp_dict[cat_id]["cls_score"] /= self.metric_tmp_dict[cat_id]["view_count"]
+                else:
+                    self.metric_tmp_dict[cat_id]["cls_score"] = 0
+                self.metric["Class"][cat_id] = self.metric_tmp_dict[cat_id]["cls_score"]
+                self.metric["Stuff"] += self.metric["Class"][cat_id]
+
+        self.metric["Things"] /= num_thing_classes
+        self.metric["Stuff"] /= num_stuff_classes
+
+        self.metric["All"] = 0.5 * (self.metric["Stuff"] + self.metric["Things"])
+
+
+    def log(self, logger, name, epoch, *args, **kwargs):
+        raise NotImplementedError("Metric logging for silhouette score not implemented yet!")
+
+    def get_metric_dict(self):
+        return self.metric
 
 class Panoptic_Quality(nn.Module):
     def __init__(self, filter=None):
@@ -280,7 +447,7 @@ class Panoptic_Quality(nn.Module):
         self.metric_tmp = PQStat()
         self.metric = None
 
-    def forward(self, output_img, mask_img, pred_data_dict, gt_data_dict, categories, *args, **kwargs):
+    def forward(self, outputs, output_img, mask_img, pred_data_dict, gt_data_dict, categories, *args, **kwargs):
 
         output_img_proc = output_img.detach().cpu().numpy()
         mask_img_proc = mask_img.detach().cpu().numpy()
@@ -303,7 +470,7 @@ class Panoptic_Quality(nn.Module):
         for name, isthing in metrics:
             results[name], per_class_results = self.metric_tmp.pq_average(categories_dict, isthing=isthing)
             if name == 'All':
-                results["per_class"] = per_class_results
+                results["Class"] = per_class_results
             # results[name + '_per_class'] = per_class_results
 
 
@@ -322,7 +489,7 @@ class Panoptic_Quality(nn.Module):
         caption_name = logger.get_caption_from_name(name)
 
         for group_name in self.metric.keys():
-            if "per_class" in group_name:
+            if "Class" in group_name:
                 for cat_id in self.metric[group_name].keys():
 
                     for metric_name in self.metric[group_name][cat_id].keys():
@@ -359,7 +526,8 @@ class Panoptic_Quality(nn.Module):
                     caption_list = name + [metric_display_name, group_name]
                     logger.add_scalar(caption_list, self.metric[group_name][metric_name], epoch)
 
-
+    def get_metric_dict(self):
+        return self.metric
 
 # WIP
 class Segmentation_Quality(nn.Module):
@@ -1465,7 +1633,7 @@ class Panoptic_spherical_contrastive_all_embeds_loss(nn.Module):
                     # pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, self.num_pos_embeddings, self.num_neg_embeddings)
                     if self.num_pos_embeddings == "all":
                         num_pos_embeddings = query_embeddings.shape[1]
-                    pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, num_pos_embeddings, self.num_neg_embeddings)
+                    pos_embeddings, neg_embeddings, neg_embeddings_cls_labels = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, num_pos_embeddings, self.num_neg_embeddings)
 
 
 
@@ -4261,20 +4429,102 @@ class MetricLearningSemSegmLoss(nn.Module):
                 self.classid2labelindx_dict[cat_id] = cls_indx_counter
                 cls_indx_counter += 1
 
-        embedding_inputs = outputs.contiguous().view(outputs.shape[1], -1).T
-        labels = masks[:, 1, :, :].contiguous().view(-1).type(torch.long)
+        device = outputs.device
 
-        foreground_mask = labels != 0
-        embedding_inputs = embedding_inputs[foreground_mask, :]
-        labels = labels[foreground_mask]
+        embedding_handler = kwargs["embedding_handler"]
 
-        unique_labels_cat_id = torch.unique(labels)
-        for unique_cat_id in unique_labels_cat_id:
-            unique_cat_id = unique_cat_id.item()
-            labels[labels == unique_cat_id] = self.classid2labelindx_dict[unique_cat_id]
+        # pos_loss = torch.tensor(0, dtype=torch.float32, device=device)
+        cls_metric_loss_part = torch.tensor(0, dtype=torch.float32, device=device)
 
-        loss = self.class_metric_loss(embedding_inputs, labels)
-        return loss
+        unique_cat_ids = torch.unique(masks[:, 1, :, :])  # skip segment_id=0
+
+        outputs_reordered_tmp = torch.permute(outputs, (1, 0, 2, 3))
+        masks_reordered_tmp = torch.permute(masks, (1, 0, 2, 3))
+
+        batch_size = outputs.shape[0]
+
+        batch_cat_id_embeds = {}  # outputs.view(outputs.shape[0], outputs.shape[1], -1)
+
+        num_categories = len(embedding_handler.embedding_storage.cls_mean_embeddings.keys())
+
+        for unique_cat_id in unique_cat_ids[1:]:  # skip 0
+            unique_cat_id = int(unique_cat_id.item())
+            batch_cat_id_embeds[unique_cat_id] = {}
+            for batch_indx in range(batch_size):
+                outputs_indx_select = masks[batch_indx, 1, :, :] == unique_cat_id
+                outputs_cat_id_embeddings = outputs_reordered_tmp[:, batch_indx, outputs_indx_select]
+
+                batch_cat_id_embeds[unique_cat_id][batch_indx] = outputs_cat_id_embeddings
+
+        for batch_indx in range(batch_size):
+
+            unique_cat_ids_proc = torch.unique(masks[batch_indx, 1, :, :])
+            for unique_cat_id in unique_cat_ids_proc[1:]:  # skip 0
+                unique_cat_id = int(unique_cat_id.item())
+
+                outputs_indx_select = masks[batch_indx, 1, :, :] == unique_cat_id
+                # outputs_cat_id_embeddings = outputs_reordered_tmp[:, batch_indx, outputs_indx_select]
+                query_embeddings = outputs_reordered_tmp[:, batch_indx, outputs_indx_select]
+
+                # neg_outputs_indx_select = torch.logical_not(outputs_indx_select)
+                # neg_outputs_indx_select = torch.logical_and(neg_outputs_indx_select, outputs_indx_arbitrary_cat)
+                #
+                # neg_outputs_cat_id_embeddings = outputs_reordered_tmp[:, neg_outputs_indx_select]
+                # pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, outputs_cat_id_embeddings.shape[1], self.num_neg_embeddings)
+
+                # pos_embeddings, neg_embeddings = embedding_handler.sample_embeddings(batch_cat_id_embeds, embedding_handler.embedding_storage, batch_indx, unique_cat_id, self.num_pos_embeddings, self.num_neg_embeddings)
+                # if self.num_pos_embeddings == "all":
+                # num_pos_embeddings = query_embeddings.shape[1]
+                num_pos_embeddings = 10
+                num_neg_embeddings = 100
+                pos_embeddings, neg_embeddings, neg_embeddings_cls_labels = embedding_handler.sample_embeddings(batch_cat_id_embeds,
+                                                                                         embedding_handler.embedding_storage,
+                                                                                         batch_indx, unique_cat_id,
+                                                                                         num_pos_embeddings,
+                                                                                         num_neg_embeddings)
+
+                embedding_inputs = torch.cat([pos_embeddings, neg_embeddings], dim=1).T
+                # test = torch.full((pos_embeddings.shape[1],), unique_cat_id, dtype=torch.int, device=device)
+                labels = torch.cat([torch.full((pos_embeddings.shape[1],), unique_cat_id, dtype=torch.int, device=device), neg_embeddings_cls_labels])
+
+                anchor_indices = torch.range(query_embeddings)
+                mine_pairs = (torch.range())
+
+                from pytorch_metric_learning import miners
+                miner_func = miners.BatchEasyHardMiner(
+                pos_strategy=miners.BatchEasyHardMiner.EASY,
+                neg_strategy=miners.BatchEasyHardMiner.SEMIHARD,
+                allowed_pos_range=None,
+                allowed_neg_range=None)
+                miner_output = miner_func(embedding_inputs, labels)
+                # foreground_mask = labels != 0
+                # embedding_inputs = embedding_inputs[foreground_mask, :]
+                # labels = labels[foreground_mask]
+
+                unique_labels_cat_id = torch.unique(labels)
+                for unique_cat_id in unique_labels_cat_id:
+                    unique_cat_id = unique_cat_id.item()
+                    labels[labels == unique_cat_id] = self.classid2labelindx_dict[unique_cat_id]
+
+                cls_metric_loss_part += self.class_metric_loss(embedding_inputs, labels)
+
+
+        return cls_metric_loss_part
+
+        # embedding_inputs = outputs.contiguous().view(outputs.shape[1], -1).T
+        # labels = masks[:, 1, :, :].contiguous().view(-1).type(torch.long)
+        #
+        # foreground_mask = labels != 0
+        # embedding_inputs = embedding_inputs[foreground_mask, :]
+        # labels = labels[foreground_mask]
+        #
+        # unique_labels_cat_id = torch.unique(labels)
+        # for unique_cat_id in unique_labels_cat_id:
+        #     unique_cat_id = unique_cat_id.item()
+        #     labels[labels == unique_cat_id] = self.classid2labelindx_dict[unique_cat_id]
+        #
+        # loss = self.class_metric_loss(embedding_inputs, labels)
+        # return loss
 
     def process_end_batch(self):
         pass
@@ -4285,7 +4535,8 @@ class MetricLearningSemSegmLoss(nn.Module):
     def set_params(self, params_dict):
         if params_dict["General_loss_type"] == type(self):
             if params_dict["class_metric_loss_type"] == type(self.class_metric_loss):
-                if getattr(self.class_metric_loss, "W", None):
+                # test = getattr(self.class_metric_loss, "W")
+                if getattr(self.class_metric_loss, "W", None) is not None:
                     self.class_metric_loss.W = params_dict["class_metric_loss_param_W"]
 
 
@@ -4295,7 +4546,7 @@ class MetricLearningSemSegmLoss(nn.Module):
 
         W_params = getattr(self.class_metric_loss, "W", None)
         # test = type(W_params)
-        if type(W_params) == type(nn.Parameter):
+        if W_params is not None:
             params_dict["class_metric_loss_param_W"] = self.class_metric_loss.W
 
         return params_dict
