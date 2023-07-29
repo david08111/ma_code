@@ -376,6 +376,10 @@ class Silhouette_Score(nn.Module):
 
             if categories[unique_cat_id]["isthing"]:
                 class_segment_id_labels = segment_id_labels[outputs_cat_id_indx_select]
+
+                if class_segment_id_labels.shape[0] <= 25:
+                    continue
+
                 class_embedding_samples = embedding_samples[outputs_cat_id_indx_select, :]
 
                 unique_segment_ids = np.unique(class_segment_id_labels)

@@ -1,0 +1,97 @@
+model:
+#  model_architecture_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/model_example.yaml"
+  model_architecture:
+#    model_architecture_origin: torchvision
+#    model_architecture_name: deeplabv3_resnet50
+    model_architecture_origin: segmentation_models_pytorch
+    model_architecture_name: unet_inceptionresnetv2
+    pretrained: False
+    embedding_dims: 19
+  channels: 3
+  output_creation:  # first list element will be used to create the panoptic output prediction
+    - identity: {}
+
+
+
+optimizer:
+  optim_type: "adamw"
+  lr: 0.001
+  eps: 0.00000001
+  weight_decay: 0.01
+
+scheduler:
+  sched_type: "reduce_on_plateau"
+  eps: 0.00000001
+  factor: 0.1
+  patience: 10
+  threshold: 0.0001
+  cooldown: 20
+
+training:
+  save_path: "/work/scratch/dziuba/ma_code_runs/trainings/test_debug_sem_segm3"
+#  gpu_ids: [0]
+  save_freq: 20
+  metrics_calc_freq: 10
+  num_epochs: 120
+  use_cpp: False
+  AMP: True
+  compile: False
+  best_eval_mode: "min"
+
+loss:
+  train_loss:
+    sem_segm_cross_entropy: {}
+#      hypsph_radius_map_list: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190] # (optional) specify for specific mapping of indx from cat in "cat_id_radius_order_map_list" to radius
+
+#    weighted_sum:
+#      loss_list:
+#        - info_nce:
+#            temperature: 0.1
+#        - info_nce:
+#            temperature: 0.6
+#      weights_list: [0.5, 0.2]
+  val_loss:
+    sem_segm_cross_entropy: {}
+#    weighted_sum:
+#      loss_list:
+#        - discriminative_loss: # settings as in "Semantic Instance Segmentation with a Discriminative Loss Function" paper for cityscapes
+#            margin_variance: 0.5
+#            margin_distance: 1.5
+#            weighting_list: [1, 1, 0.001]
+#        - discriminative_loss:
+#            margin_variance: 1
+#            margin_distance: 3
+#            weighting_list: [ 1, 1, 0.1 ]
+#      weights_list: [ 1, 0.7 ]
+  metrics:
+    - panoptic_quality:
+        filter: None
+
+#  metrics_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/metrics_master.yaml"
+
+
+data:
+  datasets_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/datasets_ref.yaml"
+  batch_size: 8
+  num_workers: 4
+  prefetch_factor: 4
+  img_width: 1024
+  img_height: 512
+  load_ram: True # loads data fully into the main memory
+  augmentations_file_path: "/work/scratch/dziuba/repos/ma_code/cfg/augmentations_base.yaml"
+
+logging:
+  name: "LOG"
+  save_path: "/work/scratch/dziuba/ma_code_runs/logs/test_debug_sem_segm3"
+  num_log_img: 5
+  log_graph: False
+  wandb_config:
+    project: "MA"
+    entity: "ma_dziuba"
+  sampler:
+    nthstep:
+      step_size: [15, 15]
+
+
+#  img_log_freq: 10 # set by metrics_calc_freq
+#  num_log_img: 5
