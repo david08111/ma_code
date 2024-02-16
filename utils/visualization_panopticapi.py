@@ -149,10 +149,15 @@ def create_visualization_panopticapi(coco_annotations_dict, segmentations_folder
         img = Image.fromarray(img)
         segmentation = Image.fromarray(segmentation)
 
-        out = Image.blend(img, segmentation, 0.5).convert(mode="RGBA")
+        # white borders
+        # out = Image.blend(img, segmentation, 0.5).convert(mode="RGBA")
+        # # out = Image.blend(out, segmentation, 0.5)
+        # out = Image.alpha_composite(out, contours_img)
+        # out.convert(mode="RGB")#.save(out_path)
+
+        # no white borders
         # out = Image.blend(out, segmentation, 0.5)
-        out = Image.alpha_composite(out, contours_img)
-        out.convert(mode="RGB")#.save(out_path)
+        out = Image.blend(img, segmentation, 0.5)
 
         # if img is None:
         #     plt.figure()

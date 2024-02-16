@@ -63,7 +63,7 @@ class Augmentation_Wrapper():
             elif key == "superpixels":
                 transform = albtions.augmentations.Superpixels(**config["transformations"][key])
             else:
-                raise("Augmentation transformation " + str(key) + " is not implemented!")
+                raise NotImplementedError("Augmentation transformation " + str(key) + " is not implemented!")
 
             transformation_list.append(transform)
 

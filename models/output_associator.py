@@ -905,7 +905,8 @@ class DBSCANClusterer(ABC):
 
 class HDBSCANClusterer(ABC):
     def __init__(self, config_dict):
-        self.clusterer = hdbscan.HDBSCAN(min_cluster_size=2, max_cluster_size=45, allow_single_cluster=True, **config_dict)
+        # self.clusterer = hdbscan.HDBSCAN(min_cluster_size=2, max_cluster_size=45, allow_single_cluster=True, **config_dict)
+        self.clusterer = hdbscan.HDBSCAN(**config_dict)
 
     def apply_clustering(self, embeddings):
         if embeddings.shape[0] > self.clusterer.min_cluster_size:
@@ -932,7 +933,7 @@ class OpticsClusterer(ABC):
 
     def apply_clustering(self, embeddings):
         # start = time.time()
-        if embeddings.shape[0] > self.clusterer.min_samples:
+        if embeddings.shape[0] > self.clusterer.min_cluster_size:
             clustering = self.clusterer.fit(embeddings)
             # print(f"Clustering took: {time.time() - start} seconds!")
             return clustering.labels_

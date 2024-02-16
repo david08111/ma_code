@@ -4,6 +4,7 @@ import seaborn
 import pandas as pd
 import numpy as np
 import copy
+import os
 from matplotlib import pyplot as plt
 from utils.logger import flatten_dict
 
@@ -82,7 +83,7 @@ def convert_metrics_dict(metrics_dict):
 
 
 # def visusalize_compare_eval_runs(run_comp_name, label_list, eval_file_path_list, save_path, categories_dict, xlabel, ylabel):
-def visusalize_compare_eval_runs(run_comp_name, label_list, eval_file_path_list, save_path, categories_dict, sort_numeric_labels):
+def visusalize_compare_eval_runs(run_comp_name, ylabel_set, label_list, eval_file_path_list, save_path, categories_dict, sort_numeric_labels):
     metrics_dict = {}
 
     # seaborn.set_theme()
@@ -91,8 +92,10 @@ def visusalize_compare_eval_runs(run_comp_name, label_list, eval_file_path_list,
     # seaborn.set_context("notebook", font_scale=1.75, rc={"lines.linewidth": 2.5, 'font.family':'Helvetica'})
 
     # df[run_comp_name] = label_list
-
-    ylabel = run_comp_name.split(" ")[0]
+    if not ylabel_set:
+        ylabel = run_comp_name.split(" ")[0]
+    else:
+        ylabel = ylabel_set
 
     if sort_numeric_labels:
         label_list_tmp = [float(elem) for elem in label_list]
@@ -113,6 +116,10 @@ def visusalize_compare_eval_runs(run_comp_name, label_list, eval_file_path_list,
 
     for i in range(len(eval_file_path_list)):
         eval_file_path = eval_file_path_list[i]
+        if not os.path.isfile(eval_file_path):
+            # test = os.listdir(eval_file_path)
+            if "metrics.json" in os.listdir(eval_file_path):
+                eval_file_path = os.path.join(eval_file_path, "metrics.json")
         with open(eval_file_path, 'r') as f:
             data_metrics_dict = json.load(f)
 
@@ -200,7 +207,7 @@ def visusalize_compare_eval_runs(run_comp_name, label_list, eval_file_path_list,
     #     plt.tight_layout()
     #
     #     plt.show()
-
+    save_path_name = run_comp_name.replace(" ", "_")
 
     for metric in df_dict:
         print(df_dict[metric])
@@ -223,7 +230,8 @@ def visusalize_compare_eval_runs(run_comp_name, label_list, eval_file_path_list,
 
     plt.tight_layout()
 
-    plt.show()
+    # plt.show()
+    plt.savefig(os.path.join(save_path, save_path_name + "_panoptic_quality.png"))
 
     ##################################
     ## Segmentation Quality
@@ -243,7 +251,8 @@ def visusalize_compare_eval_runs(run_comp_name, label_list, eval_file_path_list,
 
     plt.tight_layout()
 
-    plt.show()
+    # plt.show()
+    plt.savefig(os.path.join(save_path, save_path_name + "_segmentation_quality.png"))
 
     ##################################
     ## Panoptic Quality
@@ -263,7 +272,8 @@ def visusalize_compare_eval_runs(run_comp_name, label_list, eval_file_path_list,
 
     plt.tight_layout()
 
-    plt.show()
+    # plt.show()
+    plt.savefig(os.path.join(save_path, save_path_name + "_recognition_quality.png"))
 
     #####################################
     ## Silhouette Score
@@ -285,19 +295,10 @@ def visusalize_compare_eval_runs(run_comp_name, label_list, eval_file_path_list,
 
     plt.tight_layout()
 
-    plt.show()
-
+    # plt.show()
+    plt.savefig(os.path.join(save_path, save_path_name + "_silhouette_score.png"))
 
     pass
-
-
-
-
-
-
-
-
-
 
 
 
@@ -306,11 +307,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-n", "--name", type=str, help="Name of the plot!")
     # parser.add_argument("-x", "--xlabel", type=str, help="Name of the x axis!")
-    # parser.add_argument("-y", "--ylabel", type=str, help="Name of the y axis!")
+    parser.add_argument("-y", "--ylabel", type=str, default=None, help="Name of the y axis!")
     parser.add_argument("-l", "--label", type=str, action="append", help="Name of the plot!")
-    parser.add_argument("-o", "--sort_numeric_labels", action="store_true", help="Wether to sort the numeric label list!")
     parser.add_argument("-d", "--eval_file_path", type=str, action="append", help="File path to eval_metrics json")
     # parser.add_argument("-s", "--in_path", type=str, help="Input Data Dir")
+    parser.add_argument("-o", "--sort_numeric_labels", action="store_true",
+                        help="Wether to sort the numeric label list!")
     parser.add_argument("-s", "--save_path", type=str,
                         help="Output Save Path!")
     parser.add_argument("-t", "--dataset_type", type=str, default="cityscapes",
@@ -324,4 +326,4 @@ if __name__ == "__main__":
         raise NotImplementedError(f"Dataset {args.dataset_type} not implemented!")
 
     # visusalize_compare_eval_runs(args.name, args.label, args.eval_file_path, args.save_path, categories_dict, args.xlabel, args.ylabel)
-    visusalize_compare_eval_runs(args.name, args.label, args.eval_file_path, args.save_path, categories_dict, args.sort_numeric_labels)
+    visusalize_compare_eval_runs(args.name, args.ylabel, args.label, args.eval_file_path, args.save_path, categories_dict, args.sort_numeric_labels)

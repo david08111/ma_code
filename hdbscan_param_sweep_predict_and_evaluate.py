@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 
 
 
-def predict_and_eval(visualize, dataset_cfg_path, out_path, weight_file, config_path, copy):
+def predict_and_eval(visualize, dataset_cfg_path, out_path, weight_file, config_path, copy, min_samples, min_cluster_size, cluster_selection_epsilon):
     ##########
     torch.manual_seed(10)
     torch.backends.cudnn.benchmark = True
@@ -49,6 +49,22 @@ def predict_and_eval(visualize, dataset_cfg_path, out_path, weight_file, config_
         amp_device = "cuda"
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    config_dict["model"]["output_creation"][0]["nearest_class_mean_association"]["instance_clustering_method"] = {"hdbscan": {}}
+
+    #####################################
+    ##########
+    if min_samples:
+        config_dict["model"]["output_creation"][0]["nearest_class_mean_association"]["instance_clustering_method"]["hdbscan"]["min_samples"] = min_samples
+    if min_cluster_size:
+        config_dict["model"]["output_creation"][0]["nearest_class_mean_association"]["instance_clustering_method"][
+            "hdbscan"]["min_cluster_size"] = min_cluster_size
+    if cluster_selection_epsilon:
+        config_dict["model"]["output_creation"][0]["nearest_class_mean_association"]["instance_clustering_method"][
+            "hdbscan"]["cluster_selection_epsilon"] = cluster_selection_epsilon
+
+    #########
+    #######################################
 
     model = Model(config_dict)
     # device = torch.device("cpu")
@@ -135,7 +151,7 @@ def predict_and_eval(visualize, dataset_cfg_path, out_path, weight_file, config_
                                     "visualization")
             os.makedirs(vis_path, exist_ok=True)
         else:
-            pred_path = os.path.abspath(out_path)
+            pred_path = os.path.join(os.path.abspath(out_path), "pred")
 
         os.makedirs(pred_path, exist_ok=True)
 
@@ -248,4 +264,37 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    predict_and_eval(args.visualize, args.dataset_cfg_path, args.out_path, args.weight_file, args.config_file, args.copy)
+    min_samples_def = 150
+    min_cluster_size_def = 60
+    cluster_selection_epsilon_def = 0.0
+
+    min_samples_list = [1000000]
+    # min_samples_list = []
+
+    # min_cluster_size_list = [750, 1500, 5000, 10000, 25000, 50000, 100000]
+    min_cluster_size_list = []
+    # cluster_selection_epsilon_list = [750, 1500, 5000, 10000, 25000, 50000, 100000]
+    cluster_selection_epsilon_list = []
+    print("-" * 40)
+    print("min_samples:")
+    print("-"*40)
+    for min_samples in min_samples_list:
+        print(f"min_samples: {min_samples}")
+        out_path = os.path.join(args.out_path, "min_samples", str(min_samples))
+        predict_and_eval(args.visualize, args.dataset_cfg_path, out_path, args.weight_file, args.config_file, args.copy, min_samples, min_cluster_size_def, cluster_selection_epsilon_def)
+
+    print("-" * 40)
+    print("min_cluster_size:")
+    print("-" * 40)
+    for min_cluster_size in min_cluster_size_list:
+        print(f"min_cluster_size: {min_cluster_size}")
+        out_path = os.path.join(args.out_path, "min_cluster_size", str(min_cluster_size))
+        predict_and_eval(args.visualize, args.dataset_cfg_path, out_path, args.weight_file, args.config_file, args.copy, min_samples_def, min_cluster_size, cluster_selection_epsilon_def)
+
+    print("-" * 40)
+    print("cluster_selection_epsilon:")
+    print("-" * 40)
+    for cluster_selection_epsilon in cluster_selection_epsilon_list:
+        print(f"cluster_selection_epsilon: {cluster_selection_epsilon}")
+        out_path = os.path.join(args.out_path, "cluster_selection_epsilon", str(cluster_selection_epsilon))
+        predict_and_eval(args.visualize, args.dataset_cfg_path, out_path, args.weight_file, args.config_file, args.copy, min_samples_def, min_cluster_size_def, cluster_selection_epsilon)
